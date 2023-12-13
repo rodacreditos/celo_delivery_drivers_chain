@@ -155,12 +155,12 @@ def fix_gps_coordinates(df):
 
 
 def main(args):
-    df = get_data_from_csv(args.path)
+    df = get_data_from_csv(args.input)
     df = filter_by_distance_range(df)
     format_datetime_column(df, "Fecha Inicio")
     format_datetime_column(df, "Fecha Fin")
     fix_gps_coordinates(df)
-    write_to_local_csv(df, args.out)
+    write_to_local_csv(df, args.output)
 
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ COLUMN_RENAME_MAP = {
     "startLocation": "startLocation",
     "endLocation": "endLocation",
 }
-INPUT_DATETIME_FORMAT = "%m/%d/%Y %H:%M"
+INPUT_DATETIME_FORMAT = "%m/%d/%y %H:%M"
 OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 PRECISION_DIGITS_FOR_GPS_LOCATION = 8
 

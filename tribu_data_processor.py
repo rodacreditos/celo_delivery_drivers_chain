@@ -1,36 +1,34 @@
 """
 Tribu Data Processing Script
 
-This script is designed for loading, processing, and exporting GPS data sourced from Tribu. 
-It includes functionalities for reading data from a CSV file, filtering based on distance criteria, 
-formatting datetime fields, and finally exporting the processed data into a new CSV file. The script 
-is structured to serve as a preliminary test for data transformation processes. The ultimate goal is 
-to develop this script into a Python Lambda function that will handle data extraction from the Tribu API, 
-followed by another Lambda function for data transformation.
+This script is developed for processing GPS data obtained from Tribu. It provides functionalities 
+to read, filter, format, and export GPS data. The script processes data from a CSV file, applies 
+filters based on distance criteria, formats datetime fields, adjusts GPS coordinates, and exports 
+the processed data into a new CSV file. The final objective is to adapt these processes for integration 
+with AWS Lambda functions for automated data handling from the Tribu API.
 
-The script uses Pandas for data manipulation and supports command-line arguments for specifying input and 
-output file paths.
+Key Features:
+- Read data from a CSV file.
+- Filter records based on distance.
+- Format datetime fields to a specific format.
+- Adjust GPS coordinates to standard format and create location pairs.
+- Export processed data to a new CSV file.
 
-Example usage:
-    python tribu_data_processing.py -p input.csv -o output.csv
+Usage:
+    Run the script with command-line arguments specifying the input and output file paths.
+    Example: python tribu_data_processing.py -i input.csv -o output.csv
 
-Where:
-    -p --path      specifies the path to the input CSV file.
-    -o --output    specifies the path for the output CSV file.
-
-Features:
-    - Read data from a CSV file into a Pandas DataFrame.
-    - Filter records based on a specified distance range.
-    - Format datetime columns from one format to another.
-    - Export the processed data to a new CSV file.
+Arguments:
+    -i --input: Specifies the path to the input CSV file.
+    -o --output: Specifies the path for the output CSV file.
 
 Future Development:
-    This script is intended to be adapted into AWS Lambda functions for a more automated and scalable 
+    Planned adaptation into AWS Lambda functions for a more automated and scalable 
     approach to handling Tribu GPS data.
 
 Note:
-    This script is currently in a testing phase and is designed for initial data transformation 
-    exploration. It will be modified and expanded for production use in the future.
+    The script is in a testing phase for initial data transformation exploration and 
+    will be modified for production use in the future.
 """
 import pandas as pd
 import argparse
@@ -150,7 +148,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("-p", "--path", help="Path to the CSV file to be parsed", required=True)
+    parser.add_argument("-i", "--input", help="Input path to the CSV file to be parsed", required=True)
     parser.add_argument("-o", "--output", help="Output path of the results of this script", required=True)
     args = parser.parse_args()
     main(args)

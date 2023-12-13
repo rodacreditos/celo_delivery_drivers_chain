@@ -41,6 +41,8 @@ OUTPUT_COLUMN_MAP = {
     "Fecha Inicio": "timestampStart",
     "Fecha Fin": "timestampEnd",
     "Distancia": "measuredDistance",
+    "startLocation": "startLocation",
+    "endLocation": "endLocation",
 }
 INPUT_DATETIME_FORMAT = "%m/%d/%Y %H:%M"
 OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"

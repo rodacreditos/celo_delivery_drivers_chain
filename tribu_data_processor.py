@@ -2,16 +2,17 @@
 Tribu Data Processing Script
 
 This script is developed for processing GPS data obtained from Tribu. It provides functionalities 
-to read, filter, format, and export GPS data. The script processes data from a CSV file, applies 
-filters based on distance criteria, formats datetime fields, adjusts GPS coordinates, and exports 
-the processed data into a new CSV file. The final objective is to adapt these processes for integration 
-with AWS Lambda functions for automated data handling from the Tribu API.
+to read, filter, format, adjust GPS coordinates, and export GPS data. The script processes data from 
+a CSV file, applies filters based on distance criteria, formats datetime fields, adjusts GPS coordinates 
+to standard precision, and exports the processed data into a new CSV file with renamed columns according 
+to a predefined mapping.
 
 Key Features:
 - Read data from a CSV file.
 - Filter records based on distance.
 - Format datetime fields to a specific format.
 - Adjust GPS coordinates to standard format and create location pairs.
+- Rename and reorder DataFrame columns according to a predefined mapping.
 - Export processed data to a new CSV file.
 
 Usage:
@@ -21,6 +22,11 @@ Usage:
 Arguments:
     -i --input: Specifies the path to the input CSV file.
     -o --output: Specifies the path for the output CSV file.
+
+COLUMN_RENAME_MAP:
+    A dictionary defining the new column names for the output CSV file. It maps original column names 
+    to their respective new names. The function 'write_to_local_csv' uses this mapping to rename and 
+    reorder columns in the output file.
 
 Future Development:
     Planned adaptation into AWS Lambda functions for a more automated and scalable 

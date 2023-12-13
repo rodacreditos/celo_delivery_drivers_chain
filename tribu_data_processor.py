@@ -46,6 +46,7 @@ OUTPUT_COLUMN_MAP = {
 }
 INPUT_DATETIME_FORMAT = "%m/%d/%Y %H:%M"
 OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
+PRECISION_DIGITS_FOR_GPS_LOCATION = 8
 
 
 def get_data_from_csv(path):
@@ -107,11 +108,43 @@ def write_to_local_csv(df, output_path):
     df.to_csv(output_path, index=False)
 
 
+def fix_gps_coordinates(df):
+    """
+    Adjusts GPS coordinates in the DataFrame for standard geospatial precision and creates new columns for start and end locations.
+
+    This function corrects the longitude and latitude columns ('Lng. Inicial', 'Lat. Inicial', 
+    'Lng. Final', 'Lat. Final') by dividing their values by 10 raised to the power of 
+    PRECISION_DIGITS_FOR_GPS_LOCATION. This adjustment is necessary to introduce decimal points 
+    into the coordinates, converting them into a standard GPS coordinate format. Subsequently, 
+    it creates two new columns ('startLocation' and 'endLocation'), each containing a tuple 
+    of longitude and latitude representing the start and end locations, respectively.
+
+    Parameters:
+    df (pandas.DataFrame): The DataFrame containing the initial and final GPS data with 
+                           integer-based longitude and latitude values.
+
+    Returns:
+    None: The function modifies the DataFrame in place, adding corrected coordinate columns 
+          and new location pair columns.
+
+    Note:
+    The constant PRECISION_DIGITS_FOR_GPS_LOCATION is used to define the level of decimal 
+    precision for the GPS coordinates.
+    """
+    df['Lng. Inicial'] = df['Lng. Inicial'] / 10**PRECISION_DIGITS_FOR_GPS_LOCATION
+    df['Lat. Inicial'] = df['Lat. Inicial'] / 10**PRECISION_DIGITS_FOR_GPS_LOCATION
+    df['Lng. Final'] = df['Lng. Final'] / 10**PRECISION_DIGITS_FOR_GPS_LOCATION
+    df['Lat. Final'] = df['Lat. Final'] / 10**PRECISION_DIGITS_FOR_GPS_LOCATION
+    df['startLocation'] = df.apply(lambda row: (row['Lng. Inicial'], row['Lat. Inicial']), axis=1)
+    df['endLocation'] = df.apply(lambda row: (row['Lng. Final'], row['Lat. Final']), axis=1)
+
+
 def main(args):
     df = get_data_from_csv(args.path)
     df = filter_by_distance_range(df)
     format_datetime_column(df, "Fecha Inicio")
     format_datetime_column(df, "Fecha Fin")
+    fix_gps_coordinates(df)
     write_to_local_csv(df, args.out)
 
 

@@ -36,7 +36,7 @@ import argparse
 
 MAXIMUM_DISTANCE = 1000
 MINIMUM_DISTANCE = 10
-OUTPUT_COLUMN_MAP = {
+COLUMN_RENAME_MAP = {
     "Dispositivo": "gpsID",
     "Fecha Inicio": "timestampStart",
     "Fecha Fin": "timestampEnd",
@@ -96,15 +96,24 @@ def format_datetime_column(df, dt_column):
 
 def write_to_local_csv(df, output_path):
     """
-    Write a DataFrame to a CSV file.
+    Write a DataFrame to a CSV file after renaming its columns.
+
+    This function renames the columns of the input DataFrame according to the 
+    COLUMN_RENAME_MAP dictionary and writes the resulting DataFrame to a CSV file at 
+    the specified output path. The order of the columns in the output CSV will follow 
+    the order they are defined in COLUMN_RENAME_MAP.
 
     Parameters:
-    df (pandas.DataFrame): The DataFrame to write to a CSV file.
+    df (pandas.DataFrame): The DataFrame to be processed.
     output_path (str): The file path where the CSV file will be saved.
 
     Returns:
-    None: A CSV file is created at the specified path with the DataFrame's data.
+    None
     """
+    # Rename columns and reorder according to COLUMN_RENAME_MAP
+    df = df[list(COLUMN_RENAME_MAP.keys())].rename(columns=COLUMN_RENAME_MAP)
+    
+    # Write to CSV without index
     df.to_csv(output_path, index=False)
 
 

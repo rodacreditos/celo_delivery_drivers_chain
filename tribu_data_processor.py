@@ -81,7 +81,7 @@ def filter_by_distance_range(df, min_dist=MINIMUM_DISTANCE, max_dist=MAXIMUM_DIS
     pandas.DataFrame: A filtered DataFrame where the 'Distancia' column values 
                       fall within the specified distance range.
     """
-    return df[df['Distancia'] > min_dist & df['Distancia'] <= max_dist]
+    return df[(df['Distancia'] > min_dist) & (df['Distancia'] <= max_dist)]
 
 
 def format_datetime_column(df, dt_column):

@@ -42,7 +42,7 @@ import argparse
 
 MAXIMUM_DISTANCE = 25000 # Meters
 MINIMUM_DISTANCE = 500
-MAXIMUM_DURATION = 240 # Minutes
+MAXIMUM_DURATION = 90 # Minutes
 MINIMUM_DURATION = 10
 COLUMN_RENAME_MAP = {
     "Dispositivo": "gpsID",

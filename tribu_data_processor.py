@@ -128,7 +128,6 @@ def format_datetime_column(df, dt_column):
           to a specified format.
     """
     df[dt_column] = pd.to_datetime(df[dt_column], format=INPUT_DATETIME_FORMAT)
-    df[dt_column] = df[dt_column].dt.strftime(OUTPUT_DATETIME_FORMAT)
 
 
 def write_to_local_csv(df, output_path):
@@ -149,6 +148,10 @@ def write_to_local_csv(df, output_path):
     """
     # Rename columns and reorder according to COLUMN_RENAME_MAP
     df = df[list(COLUMN_RENAME_MAP.keys())].rename(columns=COLUMN_RENAME_MAP)
+
+    # Fix the output format for timestamp columns according to OUTPUT_DATETIME_FORMAT
+    df['timestampStart'] = df['timestampStart'].dt.strftime(OUTPUT_DATETIME_FORMAT)
+    df['timestampEnd'] = df['timestampEnd'].dt.strftime(OUTPUT_DATETIME_FORMAT)
     
     # Write to CSV without index
     df.to_csv(output_path, index=False)

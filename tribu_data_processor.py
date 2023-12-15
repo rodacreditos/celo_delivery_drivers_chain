@@ -3,13 +3,13 @@ Tribu Data Processing Script
 
 This script is developed for processing GPS data obtained from Tribu. It provides functionalities 
 to read, filter, format, adjust GPS coordinates, and export GPS data. The script processes data from 
-a CSV file, applies filters based on distance criteria, formats datetime fields, adjusts GPS coordinates 
-to standard precision, and exports the processed data into a new CSV file with renamed columns according 
-to a predefined mapping.
+a CSV file, applies filters based on distance and duration criteria, formats datetime fields, adjusts 
+GPS coordinates to standard precision, and exports the processed data into a new CSV file with renamed 
+columns according to a predefined mapping.
 
 Key Features:
 - Read data from a CSV file.
-- Filter records based on distance.
+- Filter records based on distance and duration range.
 - Format datetime fields to a specific format.
 - Adjust GPS coordinates to standard format and create location pairs.
 - Rename and reorder DataFrame columns according to a predefined mapping.
@@ -42,6 +42,8 @@ import argparse
 
 MAXIMUM_DISTANCE = 1000
 MINIMUM_DISTANCE = 10
+MAXIMUM_DURATION = 240 # Minutes
+MINIMUM_DURATION = 10
 COLUMN_RENAME_MAP = {
     "Dispositivo": "gpsID",
     "Fecha Inicio": "timestampStart",
@@ -82,6 +84,34 @@ def filter_by_distance_range(df, min_dist=MINIMUM_DISTANCE, max_dist=MAXIMUM_DIS
                       fall within the specified distance range.
     """
     return df[(df['Distancia'] > min_dist) & (df['Distancia'] <= max_dist)]
+
+
+def filter_by_duration_range(df, min_dur=MINIMUM_DURATION, max_dur=MAXIMUM_DURATION):
+    """
+    Filter a DataFrame based on a duration in minutes range.
+
+    This function calculates the duration in minutes between two timestamps 
+    in the DataFrame columns 'Fecha Fin' and 'Fecha Inicio'. It then filters 
+    the DataFrame to include only the rows where the calculated duration 
+    (in the 'durationMinutes' column) falls within the specified minimum 
+    and maximum duration range.
+
+    Parameters:
+    - df (pandas.DataFrame): The DataFrame to filter. It must contain 
+      'Fecha Fin' and 'Fecha Inicio' columns with timestamp data.
+    - min_dur (float): The minimum duration in minutes for filtering. 
+      Defaults to MINIMUM_DURATION.
+    - max_dur (float): The maximum duration in minutes for filtering. 
+      Defaults to MAXIMUM_DURATION.
+
+    Returns:
+    - pandas.DataFrame: A filtered DataFrame where the 'durationMinutes' 
+      column values fall within the specified duration in minutes range. 
+      The 'durationMinutes' column is added to the DataFrame to show the 
+      calculated duration for each row.
+    """
+    df['durationMinutes'] = (df['Fecha Fin'] - df['Fecha Inicio']).dt.total_seconds() / 60
+    return df[(df['durationMinutes'] > min_dur) & (df['durationMinutes'] <= max_dur)]
 
 
 def format_datetime_column(df, dt_column):
@@ -159,6 +189,7 @@ def main(args):
     df = filter_by_distance_range(df)
     format_datetime_column(df, "Fecha Inicio")
     format_datetime_column(df, "Fecha Fin")
+    df = filter_by_duration_range(df)
     fix_gps_coordinates(df)
     write_to_local_csv(df, args.output)
 

@@ -51,6 +51,7 @@ COLUMN_RENAME_MAP = {
     "Distancia": "measuredDistance",
     "startLocation": "startLocation",
     "endLocation": "endLocation",
+    "durationMinutes": "durationMinutes",
 }
 INPUT_DATETIME_FORMAT = "%m/%d/%y %H:%M"
 OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"

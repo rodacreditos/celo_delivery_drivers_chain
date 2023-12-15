@@ -3,13 +3,13 @@ Tribu Data Processing Script
 
 This script is developed for processing GPS data obtained from Tribu. It provides functionalities 
 to read, filter, format, adjust GPS coordinates, and export GPS data. The script processes data from 
-a CSV file, applies filters based on distance and duration criteria, formats datetime fields, adjusts 
-GPS coordinates to standard precision, and exports the processed data into a new CSV file with renamed 
-columns according to a predefined mapping.
+a CSV file, applies filters based on distance, duration, and client reference criteria, formats datetime 
+fields, adjusts GPS coordinates to standard precision, and exports the processed data into a new CSV file 
+with renamed columns according to a predefined mapping.
 
 Key Features:
 - Read data from a CSV file.
-- Filter records based on distance and duration range.
+- Filter records based on distance, duration range, and client reference availability.
 - Format datetime fields to a specific format.
 - Adjust GPS coordinates to standard format and create location pairs.
 - Rename and reorder DataFrame columns according to a predefined mapping.
@@ -115,6 +115,30 @@ def filter_by_duration_range(df, min_dur=MINIMUM_DURATION, max_dur=MAXIMUM_DURAT
     return df[(df['durationMinutes'] > min_dur) & (df['durationMinutes'] <= max_dur)]
 
 
+def filter_by_missing_client_reference(df):
+    """
+    Filter a DataFrame to include only rows with non-null client references.
+
+    This function filters the DataFrame to retain only those rows where the 
+    'Referencia' column is not null. The 'Referencia' column represents a 
+    reference to the client that holds the GPS device. Rows without a client reference (null 
+    values in 'Referencia') likely indicate routes that can be discarded, as 
+    they may represent test devices or devices not yet assigned to a client. 
+    This filtering is crucial for focusing on relevant data. Later we could generate 
+    alerts when detecting this null values in 'Referencia' to investigate whether any unassigned devices 
+    are due to oversight or are intentional for testing purposes.
+
+    Parameters:
+    - df (pandas.DataFrame): The DataFrame to filter. Must contain a 'Referencia' column.
+
+    Returns:
+    - pandas.DataFrame: A filtered DataFrame containing only rows where the 
+      'Referencia' column is not null, indicating the presence of a client 
+      reference and hence, a relevant route.
+    """
+    return df[df["Referencia"].notnull()]
+
+
 def format_datetime_column(df, dt_column):
     """
     Convert and format a datetime column in a DataFrame.
@@ -191,6 +215,7 @@ def fix_gps_coordinates(df):
 def main(args):
     df = get_data_from_csv(args.input)
     df = filter_by_distance_range(df)
+    df = filter_by_missing_client_reference(df)
     format_datetime_column(df, "Fecha Inicio")
     format_datetime_column(df, "Fecha Fin")
     df = filter_by_duration_range(df)

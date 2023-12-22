@@ -40,10 +40,10 @@ import pandas as pd
 import argparse
 
 
-MAXIMUM_DISTANCE = 25000 # Meters
-MINIMUM_DISTANCE = 500
+MAXIMUM_DISTANCE = 9000000 # Meters = 9000km
+MINIMUM_DISTANCE = 0
 MAXIMUM_DURATION = 90 # Minutes
-MINIMUM_DURATION = 10
+MINIMUM_DURATION = 5
 COLUMN_RENAME_MAP = {
     "Dispositivo": "gpsID",
     "Fecha Inicio": "timestampStart",

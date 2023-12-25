@@ -3,6 +3,7 @@ This script connects to Tribu API and gets the GPS data of the rappi driver bicy
 """
 import requests
 import argparse
+import os
 from utils import dicts_to_csv
 
 
@@ -55,8 +56,13 @@ def handler(event, context):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("-o", "--output", help="Output path of the results of this script", required=True)
-    args = parser.parse_args()
+    if 'AWS_LAMBDA_RUNTIME_API' in os.environ:
+        # Running in AWS Lambda environment
+        from awslambdaric import bootstrap
+        bootstrap.run(handler, '/var/runtime/bootstrap')
+    else:
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument("-o", "--output", help="Output path of the results of this script", required=True)
+        args = parser.parse_args()
 
-    handler(dict(output=args.output), "Local Environment")
+        handler(dict(output=args.output), "Local Environment")

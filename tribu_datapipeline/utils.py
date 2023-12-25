@@ -12,6 +12,7 @@ import logging
 
 
 RODAAPP_BUCKET_PREFIX = "s3://rodaapp-rappidriverchain"
+DATE_FORMAT = "%Y-%m-%d"
 s3_client = boto3.client('s3')
 logger = logging.getLogger()
 
@@ -74,4 +75,8 @@ def dicts_to_csv(dict_list, filepath):
 
 
 def validate_date(date_str):
-    return datetime.strptime(date_str, "%Y-%m-%d")
+    return datetime.strptime(date_str, DATE_FORMAT)
+
+
+def format_dashed_date(o_date):
+    return o_date.strftime(DATE_FORMAT)

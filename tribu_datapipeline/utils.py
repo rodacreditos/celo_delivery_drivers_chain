@@ -1,3 +1,7 @@
+"""
+This module is for having a miscellaneus of utility functions to help with
+common tasks such as storing a dict to csv locally or to s3.
+"""
 import csv
 import boto3
 from io import StringIO
@@ -13,6 +17,26 @@ def split_s3(s3_path):
     return bucket, key
 
 
+def dicts_to_csv_local(dict_list, file_path):
+    with open(file_path, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=dict_list[0].keys())
+        writer.writeheader()
+        writer.writerows(dict_list)
+
+
+def dicts_to_csv_s3(dict_list, s3_path):
+    bucket_name, file_name = split_s3(s3_path)
+    with StringIO() as csv_buffer:
+        writer = csv.DictWriter(csv_buffer, fieldnames=dict_list[0].keys())
+        writer.writeheader()
+        writer.writerows(dict_list)
+
+        s3_client = boto3.client('s3')
+        s3_client.put_object(
+            Body=csv_buffer.getvalue(),
+            Bucket=bucket_name, Key=file_name)
+
+
 def dicts_to_csv(dict_list, filepath):
     """
     Converts a list of dictionaries with the same keys into a CSV file.
@@ -24,18 +48,6 @@ def dicts_to_csv(dict_list, filepath):
         raise ValueError("The list of dictionaries is empty.")
     
     if "s3://" in filepath:
-        bucket_name, file_name = split_s3(filepath)
-        with StringIO() as csv_buffer:
-            writer = csv.DictWriter(csv_buffer, fieldnames=dict_list[0].keys())
-            writer.writeheader()
-            writer.writerows(dict_list)
-
-            s3_client = boto3.client('s3')
-            s3_client.put_object(
-                Body=csv_buffer.getvalue(),
-                Bucket=bucket_name, Key=file_name)
+        dicts_to_csv_s3(dict_list, filepath)
     else:
-        with open(filepath, mode='w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=dict_list[0].keys())
-            writer.writeheader()
-            writer.writerows(dict_list)
+        dicts_to_csv_local(dict_list, filepath)

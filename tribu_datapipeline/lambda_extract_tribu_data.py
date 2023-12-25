@@ -6,7 +6,7 @@ import requests
 import argparse
 import logging
 import os
-from utils import dicts_to_csv, validate_date, read_json_from_s3, logger, RODAAPP_BUCKET_PREFIX
+from utils import dicts_to_csv, validate_date, read_json_from_s3, format_dashed_date, logger, RODAAPP_BUCKET_PREFIX
 
 
 # Tribu API endpoint
@@ -57,9 +57,11 @@ def get_tribu_data(token, date):
 
 
 def handler(event, context):
-    tribu_token = login()
-    tribu_data = get_tribu_data(tribu_token)
-    dicts_to_csv(tribu_data, event["output"])
+    tribu_token = login(event["dataset_type"])
+    tribu_data = get_tribu_data(tribu_token, event["processing_date"])
+    output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_data", f"date={format_dashed_date(event['processing_date'])}", 
+                               f"tribu_{event['dataset_type']}_routes.csv")
+    dicts_to_csv(tribu_data, output_path)
 
 
 if __name__ == "__main__":
@@ -75,4 +77,4 @@ if __name__ == "__main__":
         
         args = parser.parse_args()
         logger.setLevel(logging.DEBUG)
-        handler(dict(date=args.date, dataset_type=args.dataset_type), "dockerlocal")
+        handler(dict(processing_date=args.date, dataset_type=args.dataset_type), "dockerlocal")

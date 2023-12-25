@@ -4,19 +4,22 @@ Given the dataset type, this script will search for the credentials of tribu api
 """
 import requests
 import argparse
+import logging
 import os
-from utils import dicts_to_csv, validate_date
+from utils import dicts_to_csv, validate_date, read_json_from_s3, logger, RODAAPP_BUCKET_PREFIX
 
 
 # Tribu API endpoint
 TRIBU_URL = "https://tribugps.com/controlador.php"
 
-def login():
+def login(dataset_type):
+    logger.info(f"Downloading tribu {dataset_type} credentials")
+    tribu_credentials = os.path.join(RODAAPP_BUCKET_PREFIX, f"tribu_{dataset_type}_credentials.json")
     form_data = {
         "tipo": "usuario",
         "funcion": "login",
-        "user": "xxxx",
-        "password": "xxxxx",
+        "user": tribu_credentials["user"],
+        "password": tribu_credentials["password"],
         "isAdmin": "true"
     }
 
@@ -25,12 +28,14 @@ def login():
     if response.status_code == 200:
         response_json = response.json()
         token = response_json.get('body', {}).get('o_token')
+        logger.info("Logged in to the tribu api")
         return token
     else:
         raise Exception("\t".join(["Error:", response.status_code, response.text]))
 
 
-def get_tribu_data(token):
+def get_tribu_data(token, date):
+    logger.info(f"Downloading routes from tribu API")
     form_data = {
         "tipo": "ruta",
         "funcion": "verRutasSubAdmin",
@@ -60,6 +65,7 @@ if __name__ == "__main__":
     if 'AWS_LAMBDA_RUNTIME_API' in os.environ:
         # Running in AWS Lambda environment
         from awslambdaric import bootstrap
+        logger.setLevel(logging.INFO)
         bootstrap.run(handler, '/var/runtime/bootstrap')
     else:
         parser = argparse.ArgumentParser(description=__doc__)
@@ -67,5 +73,5 @@ if __name__ == "__main__":
         parser.add_argument("-t", "--dataset-type", help="Given the dataset type (roda or guajira)", choices=['guajira', 'roda'], required=True)
         
         args = parser.parse_args()
-
+        logger.setLevel(logging.DEBUG)
         handler(dict(date=args.date, dataset_type=args.dataset_type), "dockerlocal")

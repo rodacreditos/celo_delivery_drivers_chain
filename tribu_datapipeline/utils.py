@@ -3,9 +3,17 @@ This module is for having a miscellaneus of utility functions to help with
 common tasks such as storing a dict to csv locally or to s3.
 """
 import csv
+import json
 import boto3
+import os
 from io import StringIO
 from datetime import datetime
+import logging
+
+
+RODAAPP_BUCKET_PREFIX = "s3://rodaapp-rappidriverchain"
+s3_client = boto3.client('s3')
+logger = logging.getLogger()
 
 
 def split_s3(s3_path):
@@ -32,10 +40,19 @@ def dicts_to_csv_s3(dict_list, s3_path):
         writer.writeheader()
         writer.writerows(dict_list)
 
-        s3_client = boto3.client('s3')
         s3_client.put_object(
             Body=csv_buffer.getvalue(),
             Bucket=bucket_name, Key=file_name)
+
+
+def read_from_s3(s3_path):
+    bucket_name, key_path = split_s3(s3_path)
+    response = s3_client(Bucket=bucket_name, Key=key_path)
+    return response['Body'].read().decode('utf-8')
+
+
+def read_json_from_s3(s3_path):
+    return json.loads(read_from_s3(s3_path))
 
 
 def dicts_to_csv(dict_list, filepath):
@@ -47,6 +64,8 @@ def dicts_to_csv(dict_list, filepath):
     """
     if not dict_list:
         raise ValueError("The list of dictionaries is empty.")
+    
+    logger.info(f"Writting {len(dict_list)} records to {filepath}")
     
     if "s3://" in filepath:
         dicts_to_csv_s3(dict_list, filepath)

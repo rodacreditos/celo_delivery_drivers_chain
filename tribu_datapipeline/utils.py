@@ -48,7 +48,7 @@ def dicts_to_csv_s3(dict_list, s3_path):
 
 def read_from_s3(s3_path):
     bucket_name, key_path = split_s3(s3_path)
-    response = s3_client(Bucket=bucket_name, Key=key_path)
+    response = s3_client.get_object(Bucket=bucket_name, Key=key_path)
     return response['Body'].read().decode('utf-8')
 
 

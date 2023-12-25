@@ -7,7 +7,7 @@ import json
 import boto3
 import os
 from io import StringIO
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 
@@ -80,3 +80,8 @@ def validate_date(date_str):
 
 def format_dashed_date(o_date):
     return o_date.strftime(DATE_FORMAT)
+
+
+def yesterday():
+    one_day = timedelta(days=1)
+    return datetime.now() - one_day

@@ -1,10 +1,11 @@
 """
-This script connects to Tribu API and gets the GPS data of the rappi driver bicycles, from yesterday.
+This script connects to Tribu API and gets the GPS data of the rappi driver bicycles, from especified date.
+Given the dataset type, this script will search for the credentials of tribu api in order to download the right dataset
 """
 import requests
 import argparse
 import os
-from utils import dicts_to_csv
+from utils import dicts_to_csv, validate_date
 
 
 # Tribu API endpoint
@@ -62,7 +63,9 @@ if __name__ == "__main__":
         bootstrap.run(handler, '/var/runtime/bootstrap')
     else:
         parser = argparse.ArgumentParser(description=__doc__)
-        parser.add_argument("-o", "--output", help="Output path of the results of this script", required=True)
+        parser.add_argument("-d", "--date", help="date of the execution of this script", type=validate_date, required=True)
+        parser.add_argument("-t", "--dataset-type", help="Given the dataset type (roda or guajira)", choices=['guajira', 'roda'], required=True)
+        
         args = parser.parse_args()
 
-        handler(dict(output=args.output), "Local Environment")
+        handler(dict(date=args.date, dataset_type=args.dataset_type), "dockerlocal")

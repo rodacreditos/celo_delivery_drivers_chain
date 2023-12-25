@@ -75,7 +75,6 @@ if __name__ == "__main__":
     if 'AWS_LAMBDA_RUNTIME_API' in os.environ:
         # Running in AWS Lambda environment
         from awslambdaric import bootstrap
-        logger.setLevel(logging.INFO)
         bootstrap.run(handler, '/var/runtime/bootstrap')
     else:
         parser = argparse.ArgumentParser(description=__doc__)
@@ -83,7 +82,6 @@ if __name__ == "__main__":
         parser.add_argument("-t", "--dataset-type", help="Given the dataset type (roda or guajira)", choices=['guajira', 'roda'], required=True)
         
         args = parser.parse_args()
-        logger.setLevel(logging.DEBUG)
         if args.date:
             handler(dict(processing_date=format_dashed_date(args.date), dataset_type=args.dataset_type), "dockerlocal")
         else:

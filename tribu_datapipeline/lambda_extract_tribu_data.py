@@ -48,6 +48,10 @@ def get_tribu_data(token):
         raise Exception("\t".join(["Error:", response.status_code, response.text]))
 
 
+def handler(event, context):
+    tribu_token = login()
+    tribu_data = get_tribu_data(tribu_token)
+    dicts_to_csv(tribu_data, event["output"])
 
 
 if __name__ == "__main__":
@@ -55,7 +59,4 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="Output path of the results of this script", required=True)
     args = parser.parse_args()
 
-    tribu_token = login()
-    tribu_data = get_tribu_data(tribu_token)
-    
-    dicts_to_csv(tribu_data, args.output)
+    handler(dict(output=args.output), "Local Environment")

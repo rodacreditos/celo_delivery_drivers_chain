@@ -13,8 +13,8 @@ def login():
     form_data = {
         "tipo": "usuario",
         "funcion": "login",
-        "user": "901405927",
-        "password": "haztuparada",
+        "user": "xxxx",
+        "password": "xxxxx",
         "isAdmin": "true"
     }
 

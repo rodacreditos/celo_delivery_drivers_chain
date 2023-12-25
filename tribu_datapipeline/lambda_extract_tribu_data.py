@@ -37,11 +37,12 @@ def login(dataset_type):
 
 def get_tribu_data(token, date):
     logger.info(f"Downloading routes from tribu API")
+    one_day = timedelta(days=1)
     form_data = {
         "tipo": "ruta",
         "funcion": "verRutasSubAdmin",
-        "d_fechaIni": "2023-12-18",
-        "d_fechaFin": "2023-12-19"
+        "d_fechaIni": format_dashed_date(date),
+        "d_fechaFin": format_dashed_date(date + one_day)
     }
 
     headers = {

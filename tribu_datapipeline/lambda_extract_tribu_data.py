@@ -38,7 +38,7 @@ def login(dataset_type):
 
 
 def get_tribu_data(token, date):
-    logger.info(f"Downloading routes from tribu API")
+    logger.info("Downloading routes from tribu API")
     one_day = timedelta(days=1)
     form_data = {
         "tipo": "ruta",

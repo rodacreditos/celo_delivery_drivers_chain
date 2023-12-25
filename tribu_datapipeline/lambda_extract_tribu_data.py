@@ -16,7 +16,7 @@ TRIBU_URL = "https://tribugps.com/controlador.php"
 
 def login(dataset_type):
     logger.info(f"Downloading tribu {dataset_type} credentials")
-    tribu_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, f"tribu_{dataset_type}_credentials.json")
+    tribu_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", f"tribu_{dataset_type}_credentials.json")
     tribu_credentials = read_json_from_s3(tribu_credentials_path)
     form_data = {
         "tipo": "usuario",

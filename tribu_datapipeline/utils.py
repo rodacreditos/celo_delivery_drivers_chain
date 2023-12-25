@@ -5,6 +5,7 @@ common tasks such as storing a dict to csv locally or to s3.
 import csv
 import boto3
 from io import StringIO
+from datetime import datetime
 
 
 def split_s3(s3_path):
@@ -51,3 +52,7 @@ def dicts_to_csv(dict_list, filepath):
         dicts_to_csv_s3(dict_list, filepath)
     else:
         dicts_to_csv_local(dict_list, filepath)
+
+
+def validate_date(date_str):
+    return datetime.strptime(date_str, "%Y-%m-%d")

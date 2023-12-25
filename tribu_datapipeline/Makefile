@@ -5,4 +5,4 @@ run_extraction:
 	docker run --rm \
 		-v ~/.aws:/root/.aws \
 		rodaapp:tribu_extraction \
-		lambda_extract_tribu_data.py -o s3://rodaapp-rappidriverchain/guajira_api_bikes.csv
+		lambda_extract_tribu_data.py --dataset-type roda

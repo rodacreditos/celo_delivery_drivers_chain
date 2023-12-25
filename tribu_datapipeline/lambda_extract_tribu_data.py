@@ -6,7 +6,9 @@ import requests
 import argparse
 import logging
 import os
-from utils import dicts_to_csv, validate_date, read_json_from_s3, format_dashed_date, logger, RODAAPP_BUCKET_PREFIX
+from datetime import timedelta
+from utils import dicts_to_csv, validate_date, read_json_from_s3, \
+                    format_dashed_date, yesterday, logger, RODAAPP_BUCKET_PREFIX
 
 
 # Tribu API endpoint
@@ -59,9 +61,13 @@ def get_tribu_data(token, date):
 
 def handler(event, context):
     tribu_token = login(event["dataset_type"])
-    tribu_data = get_tribu_data(tribu_token, event["processing_date"])
-    output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_data", f"date={format_dashed_date(event['processing_date'])}", 
+    processing_date = event.get("processing_date")
+    processing_date = validate_date(processing_date) if processing_date else yesterday()
+    output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_data", f"date={format_dashed_date(processing_date)}", 
                                f"tribu_{event['dataset_type']}_routes.csv")
+
+    tribu_data = get_tribu_data(tribu_token, processing_date)
+    
     dicts_to_csv(tribu_data, output_path)
 
 
@@ -73,9 +79,12 @@ if __name__ == "__main__":
         bootstrap.run(handler, '/var/runtime/bootstrap')
     else:
         parser = argparse.ArgumentParser(description=__doc__)
-        parser.add_argument("-d", "--date", help="date of the execution of this script", type=validate_date, required=True)
+        parser.add_argument("-d", "--date", help="date of the execution of this script", type=validate_date, required=False)
         parser.add_argument("-t", "--dataset-type", help="Given the dataset type (roda or guajira)", choices=['guajira', 'roda'], required=True)
         
         args = parser.parse_args()
         logger.setLevel(logging.DEBUG)
-        handler(dict(processing_date=args.date, dataset_type=args.dataset_type), "dockerlocal")
+        if args.date:
+            handler(dict(processing_date=format_dashed_date(args.date), dataset_type=args.dataset_type), "dockerlocal")
+        else:
+            handler(dict(dataset_type=args.dataset_type), "dockerlocal")

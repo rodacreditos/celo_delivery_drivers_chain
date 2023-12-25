@@ -1,4 +1,5 @@
 import csv
+import boto3
 
 
 def dicts_to_csv(dict_list, filename):

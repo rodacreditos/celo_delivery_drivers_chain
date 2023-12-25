@@ -9,6 +9,23 @@ from utils import dicts_to_csv
 # Tribu API endpoint
 TRIBU_URL = "https://tribugps.com/controlador.php"
 
+def login():
+    form_data = {
+        "tipo": "usuario",
+        "funcion": "login",
+        "user": "901405927",
+        "password": "haztuparada",
+        "isAdmin": "true"
+    }
+
+    response = requests.post(TRIBU_URL, data=form_data)
+
+    if response.status_code == 200:
+        response_json = response.json()
+        token = response_json.get('body', {}).get('o_token')
+        return token
+    else:
+        raise Exception("\t".join(["Error:", response.status_code, response.text]))
 
 
 def get_tribu_data(token):

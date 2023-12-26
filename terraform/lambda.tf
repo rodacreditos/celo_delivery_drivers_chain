@@ -31,7 +31,7 @@ resource "aws_iam_policy" "lambda_s3_access" {
   description = "Allow Lambda function to access a specific rodaapp-rappidriverchain S3 bucket"
 
   policy = jsonencode({
-    Version = "2023-12-25",
+    Version = "2012-10-17",
     Statement = [
       {
         Action = [

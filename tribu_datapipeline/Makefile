@@ -17,3 +17,6 @@ docker_login:
 deploy_docker_image: docker_login
 	docker tag rodaapp:tribu_extraction $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction
+
+update_extraction_lambda_function:
+	aws lambda update-function-code --function-name extract_tribu_data --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction

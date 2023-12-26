@@ -8,7 +8,7 @@ import logging
 import os
 from datetime import timedelta
 from utils import dicts_to_csv, validate_date, read_json_from_s3, \
-                    format_dashed_date, yesterday, logger, RODAAPP_BUCKET_PREFIX
+                    format_dashed_date, yesterday, logger, setup_local_logger, RODAAPP_BUCKET_PREFIX
 
 
 # Tribu API endpoint
@@ -84,6 +84,7 @@ if __name__ == "__main__":
         parser.add_argument("-t", "--dataset-type", help="Given the dataset type (roda or guajira)", choices=['guajira', 'roda'], required=True)
         
         args = parser.parse_args()
+        setup_local_logger() # when it does not have env vars from aws, it means that this script is running locally 
         if args.date:
             handler(dict(
                         detail=dict(

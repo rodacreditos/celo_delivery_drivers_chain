@@ -14,9 +14,10 @@ RODAAPP_BUCKET_PREFIX = "s3://rodaapp-rappidriverchain"
 DATE_FORMAT = "%Y-%m-%d"
 s3_client = boto3.client('s3')
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
+
+def setup_local_logger():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def split_s3(s3_path):

@@ -31,7 +31,7 @@ resource "aws_cloudwatch_event_target" "lambda_target_guajira_tribu_extraction" 
     }
 
     # Assuming the time format is like 2021-03-31T12:00:00Z, this will extract the date part
-    input_template = "{\"dataset_type\": \"guajira\", \"processing_date\": <time>}"
+    input_template = "{\"dataset_type\": \"guajira\", \"processing_time\": <time>}"
   }
 }
 
@@ -45,7 +45,7 @@ resource "aws_cloudwatch_event_target" "lambda_target_roda_tribu_extraction" {
     }
 
     # Assuming the time format is like 2021-03-31T12:00:00Z, this will extract the date part
-    input_template = "{\"dataset_type\": \"roda\", \"processing_date\": <time>}"
+    input_template = "{\"dataset_type\": \"roda\", \"processing_time\": <time>}"
   }
 }
 

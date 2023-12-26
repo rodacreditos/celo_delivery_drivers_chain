@@ -64,7 +64,7 @@ def handler(event, context):
     logger.info(f"STARTING: Tribu data extraction task. Parameters: \n{event}")
     tribu_token = login(event["dataset_type"])
     processing_date = event.get("processing_date")
-    processing_date = validate_date(processing_date[0:10]) if processing_date else yesterday()
+    processing_date = validate_date(processing_date) if processing_date else yesterday()
     output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_data", f"date={format_dashed_date(processing_date)}", 
                                f"tribu_{event['dataset_type']}_routes.csv")
 

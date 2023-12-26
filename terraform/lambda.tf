@@ -9,6 +9,50 @@ resource "aws_lambda_function" "tribu_extraction" {
   timeout = 600  # Timeout in seconds (current value is 10 minutes)
 }
 
+resource "aws_cloudwatch_event_rule" "daily_guajira_tribu_extraction" {
+  name                = "daily-guajira-extraction-lambda-trigger"
+  description         = "Trigger tribu guajira extraction Lambda function daily at 1 AM UTC-5"
+  schedule_expression = "cron(0 6 * * ? *)"
+}
+
+resource "aws_cloudwatch_event_rule" "daily_roda_tribu_extraction" {
+  name                = "daily-roda-extraction-lambda-trigger"
+  description         = "Trigger tribu roda extraction Lambda function daily at 1 AM UTC-5"
+  schedule_expression = "cron(0 6 * * ? *)"
+}
+
+resource "aws_cloudwatch_event_target" "lambda_target_guajira_tribu_extraction" {
+  rule      = aws_cloudwatch_event_rule.daily_guajira_tribu_extraction.name
+  arn       = aws_lambda_function.tribu_extraction.arn
+  input     = jsonencode({
+    dataset_type = "guajira"
+  })
+}
+
+resource "aws_cloudwatch_event_target" "lambda_target_roda_tribu_extraction" {
+  rule      = aws_cloudwatch_event_rule.daily_roda_tribu_extraction.name
+  arn       = aws_lambda_function.tribu_extraction.arn
+  input     = jsonencode({
+    dataset_type = "roda"
+  })
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_guajira" {
+  statement_id  = "AllowExecutionFromCloudWatchGuajira"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.tribu_extraction.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.daily_guajira_tribu_extraction.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_roda" {
+  statement_id  = "AllowExecutionFromCloudWatchRoda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.tribu_extraction.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.daily_roda_tribu_extraction.arn
+}
+
 resource "aws_iam_role" "lambda_exec_role" {
   name = "lambda_exec_role"
 

@@ -6,7 +6,7 @@ resource "aws_lambda_function" "tribu_extraction" {
 
   role    = aws_iam_role.lambda_exec_role.arn
 
-  
+  timeout = 600  # Timeout in seconds (current value is 10 minutes)
 }
 
 resource "aws_iam_role" "lambda_exec_role" {

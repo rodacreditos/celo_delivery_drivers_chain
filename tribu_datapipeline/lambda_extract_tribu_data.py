@@ -60,6 +60,7 @@ def get_tribu_data(token, date):
 
 
 def handler(event, context):
+    logger.info(f"STARTING: Tribu data extraction task. Parameters: \n{event}")
     tribu_token = login(event["detail"]["dataset_type"])
     processing_date = event.get("processing_date")
     processing_date = validate_date(processing_date) if processing_date else yesterday()
@@ -69,6 +70,7 @@ def handler(event, context):
     tribu_data = get_tribu_data(tribu_token, processing_date)
     
     dicts_to_csv(tribu_data, output_path)
+    logger.info("FINISHED SUCCESSFULLY: Tribu data extraction task")
 
 
 if __name__ == "__main__":

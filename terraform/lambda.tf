@@ -24,17 +24,29 @@ resource "aws_cloudwatch_event_rule" "daily_roda_tribu_extraction" {
 resource "aws_cloudwatch_event_target" "lambda_target_guajira_tribu_extraction" {
   rule      = aws_cloudwatch_event_rule.daily_guajira_tribu_extraction.name
   arn       = aws_lambda_function.tribu_extraction.arn
-  input     = jsonencode({
-    dataset_type = "guajira"
-  })
+
+  input_transformer {
+    input_paths = {
+      time = "$.time"
+    }
+
+    # Assuming the time format is like 2021-03-31T12:00:00Z, this will extract the date part
+    input_template = "{\"dataset_type\": \"guajira\", \"processing_date\": \"${time[:10]}\"}"
+  }
 }
 
 resource "aws_cloudwatch_event_target" "lambda_target_roda_tribu_extraction" {
   rule      = aws_cloudwatch_event_rule.daily_roda_tribu_extraction.name
   arn       = aws_lambda_function.tribu_extraction.arn
-  input     = jsonencode({
-    dataset_type = "roda"
-  })
+
+  input_transformer {
+    input_paths = {
+      time = "$.time"
+    }
+
+    # Assuming the time format is like 2021-03-31T12:00:00Z, this will extract the date part
+    input_template = "{\"dataset_type\": \"roda\", \"processing_date\": \"${time[:10]}\"}"
+  }
 }
 
 resource "aws_lambda_permission" "allow_cloudwatch_guajira" {

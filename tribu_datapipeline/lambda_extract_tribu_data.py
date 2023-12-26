@@ -60,11 +60,11 @@ def get_tribu_data(token, date):
 
 
 def handler(event, context):
-    tribu_token = login(event["dataset_type"])
+    tribu_token = login(event["detail"]["dataset_type"])
     processing_date = event.get("processing_date")
     processing_date = validate_date(processing_date) if processing_date else yesterday()
     output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_data", f"date={format_dashed_date(processing_date)}", 
-                               f"tribu_{event['dataset_type']}_routes.csv")
+                               f"tribu_{event['detail']['dataset_type']}_routes.csv")
 
     tribu_data = get_tribu_data(tribu_token, processing_date)
     
@@ -83,6 +83,10 @@ if __name__ == "__main__":
         
         args = parser.parse_args()
         if args.date:
-            handler(dict(processing_date=format_dashed_date(args.date), dataset_type=args.dataset_type), "dockerlocal")
+            handler(dict(
+                        detail=dict(
+                            processing_date=format_dashed_date(args.date),
+                            dataset_type=args.dataset_type)
+                        ), "dockerlocal")
         else:
-            handler(dict(dataset_type=args.dataset_type), "dockerlocal")
+            handler(dict(detail=dict(dataset_type=args.dataset_type)), "dockerlocal")

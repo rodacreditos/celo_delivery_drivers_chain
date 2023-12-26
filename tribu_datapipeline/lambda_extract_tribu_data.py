@@ -60,6 +60,7 @@ def get_tribu_data(token, date):
 
 
 def handler(event, context):
+    logger.setLevel(logging.INFO)
     logger.info(f"STARTING: Tribu data extraction task. Parameters: \n{event}")
     tribu_token = login(event["detail"]["dataset_type"])
     processing_date = event.get("processing_date")

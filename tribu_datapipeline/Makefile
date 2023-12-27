@@ -11,12 +11,26 @@ run_extraction:
 		-i --entrypoint python rodaapp:tribu_extraction \
 		lambda_extract_tribu_data.py --dataset-type roda
 
+build_processing:
+	docker build -t rodaapp:tribu_processing -f ./Dockerfile_processing .
+
+run_processing:
+	docker run --rm \
+		-v ~/.aws:/root/.aws \
+		-v $(shell pwd):/var/task \
+		-i --entrypoint python rodaapp:tribu_processing \
+		lambda_process_tribu_data.py --dataset-type roda
+
 docker_login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 
-deploy_docker_image: docker_login
+deploy_extraction_docker_image: docker_login
 	docker tag rodaapp:tribu_extraction $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction
+
+deploy_processing_docker_image: docker_login
+	docker tag rodaapp:tribu_processing $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_processing
+	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_processing
 
 update_extraction_lambda_function:
 	aws lambda update-function-code --function-name extract_tribu_data --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction

@@ -137,7 +137,7 @@ def handler(event, context):
     processing_date = event.get("processing_date")
     processing_date = validate_date(processing_date) if processing_date else yesterday()
     output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_data", f"date={format_dashed_date(processing_date)}", 
-                               f"tribu_{event['dataset_type']}_routes.csv")
+                               f"source={event['dataset_type']}", f"tribu_{event['dataset_type']}_routes.csv")
 
     tribu_data = get_tribu_data(tribu_token, processing_date)
     

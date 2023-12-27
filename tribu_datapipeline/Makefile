@@ -20,3 +20,16 @@ deploy_docker_image: docker_login
 
 update_extraction_lambda_function:
 	aws lambda update-function-code --function-name extract_tribu_data --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction
+
+backfill_extraction:
+ifndef DATASET_TYPE
+	$(error DATASET_TYPE is not set)
+endif
+ifndef DATE
+	$(error DATE is not set)
+endif
+	aws lambda invoke \
+		--function-name extract_tribu_data \
+		--payload '{"dataset_type":"$(DATASET_TYPE)", "processing_date":"$(DATE)"}' \
+		--cli-binary-format raw-in-base64-out \
+		/dev/stdout

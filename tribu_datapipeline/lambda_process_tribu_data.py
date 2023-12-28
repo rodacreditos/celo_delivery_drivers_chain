@@ -224,11 +224,12 @@ def handler(event, context):
     :param context: Context information provided by AWS Lambda (unused in this function).
     """
     logger.setLevel(logging.INFO)
-    logger.info(f"STARTING: Tribu data processing task. Parameters: \n{event}")
+    logger.info("STARTING: Tribu data processing task.")
     processing_date = event.get("processing_date")
     processing_date = validate_date(processing_date) if processing_date else yesterday()
     dataset_type = event.get("dataset_type")
-    logger.info(f"Parameter: dataset type {dataset_type}, processing date: {processing_date}")
+    logger.info(f"Parameters: dataset type {dataset_type}, processing date: {processing_date}")
+
 
 
 if __name__ == "__main__":

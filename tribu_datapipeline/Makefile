@@ -35,6 +35,9 @@ deploy_processing_docker_image: docker_login
 update_extraction_lambda_function:
 	aws lambda update-function-code --function-name extract_tribu_data --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction
 
+update_processing_lambda_function:
+	aws lambda update-function-code --function-name process_tribu_data --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_processing
+
 backfill_extraction:
 ifndef DATASET_TYPE
 	$(error DATASET_TYPE is not set)

@@ -91,8 +91,8 @@ def read_csv_into_pandas_from_s3(s3_path):
     """
     Read a csv file from S3 and return its content into a pandas dataframe.
 
-    :param s3_path: The S3 path to the JSON file, in the format 's3://bucket_name/key'.
-    :return: The parsed JSON data.
+    :param s3_path: The S3 path to the csv file, in the format 's3://bucket_name/key'.
+    :return: The parsed csv data.
     """
     csv_string = read_from_s3(s3_path)
     return pd.read_csv(BytesIO(csv_string.encode()))

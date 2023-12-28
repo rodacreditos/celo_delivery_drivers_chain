@@ -76,6 +76,19 @@ def dicts_to_csv_s3(dict_list, s3_path):
             Bucket=bucket_name, Key=file_name)
 
 
+def upload_buffer_to_s3(s3_path, buff):
+    """
+    Upload a buffer IO to S3.
+
+    :param s3_path: The S3 path where the IO buffer will be uploaded, in the format 's3://bucket_name/key'.
+    :param buff: IO buffer.
+    """
+    bucket_name, file_name = split_s3(s3_path)
+    s3_client.put_object(
+            Body=buff.getvalue(),
+            Bucket=bucket_name, Key=file_name)
+
+
 def read_from_s3(s3_path):
     """
     Read a file from S3 and return its content as a string.

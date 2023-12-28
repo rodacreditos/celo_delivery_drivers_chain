@@ -52,7 +52,9 @@ import argparse
 import logging
 import os
 import pandas as pd
-from utils import validate_date, format_dashed_date, yesterday, logger, setup_local_logger, RODAAPP_BUCKET_PREFIX
+from io import BytesIO
+from utils import validate_date, read_from_s3, upload_buffer_to_s3, format_dashed_date, yesterday, logger, \
+    				setup_local_logger, RODAAPP_BUCKET_PREFIX
 
 MAXIMUM_DISTANCE = 9000000 # Meters = 9000km
 MINIMUM_DISTANCE = 0
@@ -66,6 +68,47 @@ COLUMN_RENAME_MAP = {
 }
 INPUT_DATETIME_FORMAT = "%m/%d/%y %H:%M"
 OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
+
+
+def read_csv_into_pandas_from_s3(s3_path):
+    """
+    Read a JSON file from S3 and return its content.
+
+    :param s3_path: The S3 path to the JSON file, in the format 's3://bucket_name/key'.
+    :return: The parsed JSON data.
+    """
+    csv_string = read_from_s3(s3_path)
+    return pd.read_csv(BytesIO(csv_string.encode()))
+
+
+def upload_pandas_to_s3(s3_path, df):
+    """
+    Upload a pandas dataframe to S3.
+
+    :param s3_path: The S3 path where the IO buffer will be uploaded, in the format 's3://bucket_name/key'.
+    :param df: Dataframe to be uploaded.
+    """
+    with BytesIO() as csv_buffer:
+        df.to_csv(csv_buffer, index=False)
+        upload_buffer_to_s3(s3_path, csv_buffer)
+        
+
+def format_output_df(df, column_rename_map=COLUMN_RENAME_MAP):
+    """
+    This function renames the columns of the input DataFrame according to the 
+    column_rename_map dictionary and writes the resulting DataFrame to a CSV file at 
+    the specified output path. The order of the columns in the output CSV will follow 
+    the order they are defined in column_rename_map. It also fix the timesatmp output format.
+    
+    :param df (pandas.DataFrame): The DataFrame to be processed.
+    :param column_rename_map (dict): The column_rename_map for renaming. Defaults to COLUMN_RENAME_MAP.
+    """
+    # Rename columns and reorder according to column_rename_map
+    df = df[list(column_rename_map.keys())].rename(columns=column_rename_map)
+    
+	# Fix the output format for timestamp columns according to OUTPUT_DATETIME_FORMAT
+    df['timestampStart'] = df['timestampStart'].dt.strftime(OUTPUT_DATETIME_FORMAT)
+    df['timestampEnd'] = df['timestampEnd'].dt.strftime(OUTPUT_DATETIME_FORMAT)
 
 
 def filter_by_distance_range(df, min_dist=MINIMUM_DISTANCE, max_dist=MAXIMUM_DISTANCE):

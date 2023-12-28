@@ -84,7 +84,6 @@ def get_transformation_parameters(dataset_type):
     :return: A dict containing tranformating parameters used for processing tribu data.
     """
     params_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_metadata", f"transformations_{dataset_type}.yaml")
-    print(params_path)
     return read_yaml_from_s3(params_path)
 
 

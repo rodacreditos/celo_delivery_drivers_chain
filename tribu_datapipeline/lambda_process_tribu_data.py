@@ -66,7 +66,7 @@ COLUMN_RENAME_MAP = {
     "o_fecha_final": "timestampEnd",
     "f_distancia": "measuredDistance",
 }
-INPUT_DATETIME_FORMAT = "%m/%d/%y %H:%M"
+INPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
@@ -110,7 +110,7 @@ def upload_pandas_to_s3(s3_path, df):
         upload_buffer_to_s3(s3_path, csv_buffer)
         
 
-def format_output_df(df, column_rename_map=COLUMN_RENAME_MAP):
+def format_output_df(df, column_rename_map=COLUMN_RENAME_MAP, output_datetime_format=OUTPUT_DATETIME_FORMAT):
     """
     This function renames the columns of the input DataFrame according to the 
     column_rename_map dictionary and writes the resulting DataFrame to a CSV file at 
@@ -123,9 +123,9 @@ def format_output_df(df, column_rename_map=COLUMN_RENAME_MAP):
     # Rename columns and reorder according to column_rename_map
     df = df[list(column_rename_map.keys())].rename(columns=column_rename_map)
     
-	# Fix the output format for timestamp columns according to OUTPUT_DATETIME_FORMAT
-    df['timestampStart'] = df['timestampStart'].dt.strftime(OUTPUT_DATETIME_FORMAT)
-    df['timestampEnd'] = df['timestampEnd'].dt.strftime(OUTPUT_DATETIME_FORMAT)
+	# Fix the output format for timestamp columns according to output_datetime_format
+    df['timestampStart'] = df['timestampStart'].dt.strftime(output_datetime_format)
+    df['timestampEnd'] = df['timestampEnd'].dt.strftime(output_datetime_format)
 
 
 def filter_by_distance_range(df, min_dist=MINIMUM_DISTANCE, max_dist=MAXIMUM_DISTANCE):
@@ -196,7 +196,7 @@ def filter_by_missing_client_reference(df):
     return df[df["Referencia"].notnull()]
 
 
-def format_datetime_column(df, dt_column):
+def format_datetime_column(df, dt_column, input_datetime_format=INPUT_DATETIME_FORMAT):
     """
     Convert and format a datetime column in a DataFrame.
 
@@ -208,7 +208,7 @@ def format_datetime_column(df, dt_column):
     None: The function modifies the DataFrame in place, converting the datetime column
           to a specified format.
     """
-    df[dt_column] = pd.to_datetime(df[dt_column], format=INPUT_DATETIME_FORMAT)
+    df[dt_column] = pd.to_datetime(df[dt_column], format=input_datetime_format)
 
 
 def handler(event, context):
@@ -230,6 +230,39 @@ def handler(event, context):
     dataset_type = event.get("dataset_type")
     logger.info(f"Parameters: dataset type {dataset_type}, processing date: {processing_date}")
 
+    trans_params = get_transformation_parameters(dataset_type)
+    logger.info(f"Transformation parameters: {trans_params}")
+    input_datetime_format = trans_params.get("input_datetime_format", INPUT_DATETIME_FORMAT)
+    output_datetime_format = trans_params.get("output_datetime_format", OUTPUT_DATETIME_FORMAT)
+    column_rename_map = trans_params.get("column_rename_map", COLUMN_RENAME_MAP)
+    input_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_data", f"date={format_dashed_date(processing_date)}",
+                               f"source={event['dataset_type']}", f"tribu_{event['dataset_type']}_routes.csv")
+    output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "rappi_driver_routes", f"date={format_dashed_date(processing_date)}",
+                               f"source=tribu_{event['dataset_type']}", f"tribu_{event['dataset_type']}_routes.csv")
+    
+    df = read_csv_into_pandas_from_s3(input_path)
+
+    # this are GPS devices that we cannot relate to any rappi driver
+    filter_by_missing_client_reference(df)
+
+    # format datetime on input data in order to make it easier to do datetime operations
+    format_datetime_column(df, "o_fecha_inicial", input_datetime_format)
+    format_datetime_column(df, "o_fecha_final", input_datetime_format)
+
+    if "distance_filter" in trans_params:
+        distance_filter = trans_params["distance_filter"]
+        filter_by_distance_range(df, distance_filter["min"], distance_filter["min"])
+
+    if "duration_filter" in trans_params:
+        duration_filter = trans_params["duration_filter"]
+        filter_by_duration_range(df, duration_filter["min"], duration_filter["max"])
+
+    # format output and upload it to s3 as a csv file
+    format_output_df(df, column_rename_map, output_datetime_format)
+    upload_pandas_to_s3(output_path, df)
+
+    logger.info("FINISHED SUCCESSFULLY: Tribu data processing task")
+    return "FINISHED SUCCESSFULLY: Tribu data processing task"
 
 
 if __name__ == "__main__":

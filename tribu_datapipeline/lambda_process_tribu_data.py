@@ -53,7 +53,7 @@ import logging
 import os
 import pandas as pd
 from io import BytesIO
-from utils import validate_date, read_from_s3, upload_buffer_to_s3, format_dashed_date, yesterday, logger, \
+from utils import validate_date, read_from_s3, read_yaml_from_s3, upload_buffer_to_s3, format_dashed_date, yesterday, logger, \
     				setup_local_logger, RODAAPP_BUCKET_PREFIX
 
 MAXIMUM_DISTANCE = 9000000 # Meters = 9000km
@@ -70,9 +70,26 @@ INPUT_DATETIME_FORMAT = "%m/%d/%y %H:%M"
 OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
+def get_transformation_parameters(dataset_type):
+    """
+    Get transformation parameters based on the dataset type. Expected transformation parameters
+    are: maximun and minimum distance, maximun and minimum duration, a column name map for renaming
+    columns, and format for reading and writing datetime values.
+
+    Fetches transformation parameters from an AWS S3 bucket and return it as a dict objects.
+    The dataset type ('roda' or 'guajira') determines the specific transformation parameters used,
+    corresponding to motorbike or bicycle data, respectively.
+
+    :param dataset_type: A string indicating the type of dataset ('roda' or 'guajira').
+    :return: A dict containing tranformating parameters used for processing tribu data.
+    """
+    params_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_metada", f"tranformations_{dataset_type}.yaml")
+    return read_yaml_from_s3(params_path)
+
+
 def read_csv_into_pandas_from_s3(s3_path):
     """
-    Read a JSON file from S3 and return its content.
+    Read a csv file from S3 and return its content into a pandas dataframe.
 
     :param s3_path: The S3 path to the JSON file, in the format 's3://bucket_name/key'.
     :return: The parsed JSON data.

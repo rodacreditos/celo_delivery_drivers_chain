@@ -83,15 +83,12 @@ def dicts_to_csv_s3(dict_list: list, s3_path: str) -> None:
     :param dict_list: List of dictionaries with consistent keys.
     :param s3_path: The S3 path (e.g., 's3://bucket_name/key') where the CSV file will be uploaded.
     """
-    bucket_name, file_name = split_s3(s3_path)
     with StringIO() as csv_buffer:
         writer = csv.DictWriter(csv_buffer, fieldnames=dict_list[0].keys())
         writer.writeheader()
         writer.writerows(dict_list)
 
-        s3_client.put_object(
-            Body=csv_buffer.getvalue(),
-            Bucket=bucket_name, Key=file_name)
+        upload_buffer_to_s3(s3_path)
 
 
 def upload_buffer_to_s3(s3_path: str, buff: IOBase) -> None:

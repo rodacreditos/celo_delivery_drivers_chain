@@ -83,7 +83,7 @@ def get_transformation_parameters(dataset_type):
     :param dataset_type: A string indicating the type of dataset ('roda' or 'guajira').
     :return: A dict containing tranformating parameters used for processing tribu data.
     """
-    params_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_metada", f"tranformations_{dataset_type}.yaml")
+    params_path = os.path.join(RODAAPP_BUCKET_PREFIX, "/tribu_metadata", f"tranformations_{dataset_type}.yaml")
     return read_yaml_from_s3(params_path)
 
 

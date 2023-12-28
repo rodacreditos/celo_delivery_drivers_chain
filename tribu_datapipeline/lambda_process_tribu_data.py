@@ -84,6 +84,7 @@ def get_transformation_parameters(dataset_type):
     :return: A dict containing tranformating parameters used for processing tribu data.
     """
     params_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_metadata", f"transformations_{dataset_type}.yaml")
+    logger.info(f"Fetching transformation parameters for {dataset_type}: {params_path}")
     return read_yaml_from_s3(params_path)
 
 
@@ -94,6 +95,7 @@ def read_csv_into_pandas_from_s3(s3_path):
     :param s3_path: The S3 path to the csv file, in the format 's3://bucket_name/key'.
     :return: The parsed csv data.
     """
+    logger.info(f"Fetching tribu routes data from {s3_path}")
     csv_string = read_from_s3(s3_path)
     return pd.read_csv(BytesIO(csv_string.encode()))
 
@@ -105,6 +107,7 @@ def upload_pandas_to_s3(s3_path, df):
     :param s3_path: The S3 path where the IO buffer will be uploaded, in the format 's3://bucket_name/key'.
     :param df: Dataframe to be uploaded.
     """
+    logger.info(f"Uploading rappi delivery routes to {s3_path}")
     with BytesIO() as csv_buffer:
         df.to_csv(csv_buffer, index=False)
         upload_buffer_to_s3(s3_path, csv_buffer)
@@ -120,6 +123,7 @@ def format_output_df(df, column_rename_map=COLUMN_RENAME_MAP, output_datetime_fo
     :param df (pandas.DataFrame): The DataFrame to be processed.
     :param column_rename_map (dict): The column_rename_map for renaming. Defaults to COLUMN_RENAME_MAP.
     """
+    logger.info("Selecting and renaming columns")
     # Rename columns and reorder according to column_rename_map
     df = df[list(column_rename_map.keys())].rename(columns=column_rename_map)
     
@@ -242,6 +246,8 @@ def handler(event, context):
     
     df = read_csv_into_pandas_from_s3(input_path)
 
+    logger.info("Applying filters")
+
     # this are GPS devices that we cannot relate to any rappi driver
     filter_by_missing_client_reference(df)
 
@@ -256,6 +262,8 @@ def handler(event, context):
     if "duration_filter" in trans_params:
         duration_filter = trans_params["duration_filter"]
         filter_by_duration_range(df, duration_filter["min"], duration_filter["max"])
+
+    logger.info("Preparing output data")
 
     # format output and upload it to s3 as a csv file
     format_output_df(df, column_rename_map, output_datetime_format)

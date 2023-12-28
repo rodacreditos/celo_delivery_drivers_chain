@@ -51,7 +51,104 @@ Note:
 import argparse
 import logging
 import os
+import pandas as pd
 from utils import validate_date, format_dashed_date, yesterday, logger, setup_local_logger, RODAAPP_BUCKET_PREFIX
+
+MAXIMUM_DISTANCE = 9000000 # Meters = 9000km
+MINIMUM_DISTANCE = 0
+MAXIMUM_DURATION = 90 # Minutes
+MINIMUM_DURATION = 2
+COLUMN_RENAME_MAP = {
+    "k_dispositivo": "gpsID",
+    "o_fecha_inicial": "timestampStart",
+    "o_fecha_final": "timestampEnd",
+    "f_distancia": "measuredDistance",
+}
+INPUT_DATETIME_FORMAT = "%m/%d/%y %H:%M"
+OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
+
+
+def filter_by_distance_range(df, min_dist=MINIMUM_DISTANCE, max_dist=MAXIMUM_DISTANCE):
+    """
+    Filter a DataFrame based on a distance range.
+
+    Parameters:
+    df (pandas.DataFrame): The DataFrame to filter.
+    min_dist (float): The minimum distance for filtering. Defaults to MINIMUM_DISTANCE.
+    max_dist (float): The maximum distance for filtering. Defaults to MAXIMUM_DISTANCE.
+
+    Returns:
+    pandas.DataFrame: A filtered DataFrame where the 'f_distancia' column values 
+                      fall within the specified distance range.
+    """
+    return df[(df['f_distancia'] > min_dist) & (df['f_distancia'] <= max_dist)]
+
+
+def filter_by_duration_range(df, min_dur=MINIMUM_DURATION, max_dur=MAXIMUM_DURATION):
+    """
+    Filter a DataFrame based on a duration in minutes range.
+
+    This function calculates the duration in minutes between two timestamps 
+    in the DataFrame columns 'o_fecha_final' and 'o_fecha_inicial'. It then filters 
+    the DataFrame to include only the rows where the calculated duration 
+    (in the 'durationMinutes' column) falls within the specified minimum 
+    and maximum duration range.
+
+    Parameters:
+    - df (pandas.DataFrame): The DataFrame to filter. It must contain 
+      'o_fecha_final' and 'o_fecha_inicial' columns with timestamp data.
+    - min_dur (float): The minimum duration in minutes for filtering. 
+      Defaults to MINIMUM_DURATION.
+    - max_dur (float): The maximum duration in minutes for filtering. 
+      Defaults to MAXIMUM_DURATION.
+
+    Returns:
+    - pandas.DataFrame: A filtered DataFrame where the 'durationMinutes' 
+      column values fall within the specified duration in minutes range. 
+      The 'durationMinutes' column is added to the DataFrame to show the 
+      calculated duration for each row.
+    """
+    df['durationMinutes'] = (df['o_fecha_final'] - df['o_fecha_inicial']).dt.total_seconds() / 60
+    return df[(df['durationMinutes'] > min_dur) & (df['durationMinutes'] <= max_dur)]
+
+
+def filter_by_missing_client_reference(df):
+    """
+    Filter a DataFrame to include only rows with non-null client references.
+
+    This function filters the DataFrame to retain only those rows where the 
+    'Referencia' column is not null. The 'Referencia' column represents a 
+    reference to the client that holds the GPS device. Rows without a client reference (null 
+    values in 'Referencia') likely indicate routes that can be discarded, as 
+    they may represent test devices or devices not yet assigned to a client. 
+    This filtering is crucial for focusing on relevant data. Later we could generate 
+    alerts when detecting this null values in 'Referencia' to investigate whether any unassigned devices 
+    are due to oversight or are intentional for testing purposes.
+
+    Parameters:
+    - df (pandas.DataFrame): The DataFrame to filter. Must contain a 'Referencia' column.
+
+    Returns:
+    - pandas.DataFrame: A filtered DataFrame containing only rows where the 
+      'Referencia' column is not null, indicating the presence of a client 
+      reference and hence, a relevant route.
+    """
+    return df[df["Referencia"].notnull()]
+
+
+def format_datetime_column(df, dt_column):
+    """
+    Convert and format a datetime column in a DataFrame.
+
+    Parameters:
+    df (pandas.DataFrame): The DataFrame containing the datetime column to be formatted.
+    dt_column (str): The name of the column to format.
+
+    Returns:
+    None: The function modifies the DataFrame in place, converting the datetime column
+          to a specified format.
+    """
+    df[dt_column] = pd.to_datetime(df[dt_column], format=INPUT_DATETIME_FORMAT)
 
 
 def handler(event, context):

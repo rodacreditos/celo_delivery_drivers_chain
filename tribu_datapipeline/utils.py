@@ -7,6 +7,7 @@ designed to support miscellaneous tasks in data processing and storage operation
 import csv
 import json
 import boto3
+import yaml
 from io import StringIO
 from datetime import datetime, timedelta
 import logging
@@ -109,6 +110,16 @@ def read_json_from_s3(s3_path):
     :return: The parsed JSON data.
     """
     return json.loads(read_from_s3(s3_path))
+
+
+def read_yaml_from_s3(s3_path):
+    """
+    Read a YAML file from S3 and return its content.
+
+    :param s3_path: The S3 path to the YAML file, in the format 's3://bucket_name/key'.
+    :return: The parsed YAML data.
+    """
+    return yaml.safe_load(StringIO(read_from_s3(s3_path)))
 
 
 def dicts_to_csv(dict_list, filepath):

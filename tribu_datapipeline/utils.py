@@ -88,7 +88,7 @@ def dicts_to_csv_s3(dict_list: list, s3_path: str) -> None:
         writer.writeheader()
         writer.writerows(dict_list)
 
-        upload_buffer_to_s3(s3_path)
+        upload_buffer_to_s3(s3_path, csv_buffer)
 
 
 def upload_buffer_to_s3(s3_path: str, buff: IOBase) -> None:

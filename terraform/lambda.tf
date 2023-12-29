@@ -9,6 +9,17 @@ resource "aws_lambda_function" "tribu_extraction" {
   timeout = 600  # Timeout in seconds (current value is 10 minutes)
 }
 
+resource "aws_lambda_function" "tribu_processing" {
+  function_name = "process_tribu_data"
+
+  package_type = "Image"
+  image_uri    = "062988117074.dkr.ecr.us-east-2.amazonaws.com/rodaapp:tribu_processing"
+
+  role    = aws_iam_role.lambda_exec_role.arn
+
+  timeout = 600  # Timeout in seconds (current value is 10 minutes)
+}
+
 resource "aws_cloudwatch_event_rule" "daily_guajira_tribu_extraction" {
   name                = "daily-guajira-extraction-lambda-trigger"
   description         = "Trigger tribu guajira extraction Lambda function daily at 1 AM UTC-5"

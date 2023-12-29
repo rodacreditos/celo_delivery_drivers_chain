@@ -130,6 +130,8 @@ def format_output_df(df, column_rename_map=COLUMN_RENAME_MAP, output_datetime_fo
 	# Fix the output format for timestamp columns according to output_datetime_format
     df['timestampStart'] = df['timestampStart'].dt.strftime(output_datetime_format)
     df['timestampEnd'] = df['timestampEnd'].dt.strftime(output_datetime_format)
+    
+    return df
 
 
 def filter_by_distance_range(df, min_dist=MINIMUM_DISTANCE, max_dist=MAXIMUM_DISTANCE):
@@ -266,7 +268,7 @@ def handler(event, context):
     logger.info("Preparing output data")
 
     # format output and upload it to s3 as a csv file
-    format_output_df(df, column_rename_map, output_datetime_format)
+    df = format_output_df(df, column_rename_map, output_datetime_format)
     upload_pandas_to_s3(output_path, df)
 
     logger.info("FINISHED SUCCESSFULLY: Tribu data processing task")

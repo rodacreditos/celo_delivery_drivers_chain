@@ -51,6 +51,19 @@ endif
 		--cli-binary-format raw-in-base64-out \
 		/dev/stdout
 
+backfill_processing:
+ifndef DATASET_TYPE
+	$(error DATASET_TYPE is not set)
+endif
+ifndef DATE
+	$(error DATE is not set)
+endif
+	aws lambda invoke \
+		--function-name process_tribu_data \
+		--payload '{"dataset_type":"$(DATASET_TYPE)", "processing_date":"$(DATE)"}' \
+		--cli-binary-format raw-in-base64-out \
+		/dev/stdout
+
 deploy_extraction_lambda_function: build_extraction deploy_extraction_docker_image update_extraction_lambda_function
 deploy_processing_lambda_function: build_processing deploy_processing_docker_image update_processing_lambda_function
 deploy_lambda_functions: deploy_extraction_lambda_function deploy_processing_lambda_function

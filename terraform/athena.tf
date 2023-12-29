@@ -21,8 +21,8 @@ resource "aws_glue_catalog_table" "rappi_driver_routes" {
         name                  = "CSV"
         serialization_library = "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"
         parameters            = {
-        "field.delim" = ","
-        "serialization.format" = ","
+            "field.delim" = ","
+            "serialization.format" = ","
         }
     }
 

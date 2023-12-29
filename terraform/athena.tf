@@ -23,6 +23,7 @@ resource "aws_glue_catalog_table" "rappi_driver_routes" {
         parameters            = {
             "field.delim" = ","
             "serialization.format" = ","
+            "skip.header.line.count"  = "1"  # Ignorar la primera fila (encabezado)
         }
     }
 

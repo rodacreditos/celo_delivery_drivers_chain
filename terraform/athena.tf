@@ -1,51 +1,55 @@
-resource "aws_athena_database" "rappidriver_data" {
-  name   = "rappidriver_data"
-  bucket = "rodaapp-rappidriverchain"
+resource "aws_glue_catalog_database" "rappi_driver_db" {
+  name = "rappi_driver_db"
 }
 
-resource "aws_athena_table" "rappi_driver_routes" {
-  database_name = aws_athena_database.rappidriver_data.name
-  name          = "rappi_driver_routes"
-  bucket        = "rodaapp-rappidriverchain"
+resource "aws_glue_catalog_table" "rappi_driver_routes" {
+  name          = "routes"
+  database_name = aws_glue_catalog_database.rappi_driver_db.name
 
-  schema {
-    column {
+  table_type = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://rodaapp-rappidriverchain/rappi_driver_routes/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+        name                  = "CSV"
+        serialization_library = "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"
+        parameters            = {
+        "field.delim" = ","
+        "serialization.format" = ","
+        }
+    }
+
+    columns {
       name = "gpsID"
       type = "string"
     }
-    column {
+
+    columns {
       name = "timestampStart"
       type = "timestamp"
     }
-    column {
+
+    columns {
       name = "timestampEnd"
       type = "timestamp"
     }
-    column {
+
+    columns {
       name = "measuredDistance"
       type = "float"
     }
   }
 
   partition_keys {
-    column {
-      name = "date"
-      type = "string"
-    }
-    column {
-      name = "source"
-      type = "string"
-    }
+    name = "date"
+    type = "string"
   }
 
-  table_type = "EXTERNAL_TABLE"
-  external_location = "s3://rodaapp-rappidriverchain/rappi_driver_routes/"
-
-  serde_parameters = {
-    "serialization.format" = ","
-    "field.delim"          = ","
+  partition_keys {
+    name = "source"
+    type = "string"
   }
-
-  input_format = "org.apache.hadoop.mapred.TextInputFormat"
-  output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 }

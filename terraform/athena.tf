@@ -1,5 +1,9 @@
 resource "aws_glue_catalog_database" "rappi_driver_db" {
   name = "rappi_driver_db"
+
+  parameters = {
+    "locationUri" = "s3://rodaapp-rappidriverchain/athena-results/"
+  }
 }
 
 resource "aws_glue_catalog_table" "rappi_driver_routes" {
@@ -23,22 +27,22 @@ resource "aws_glue_catalog_table" "rappi_driver_routes" {
     }
 
     columns {
-      name = "gpsID"
+      name = "gpsid"
       type = "string"
     }
 
     columns {
-      name = "timestampStart"
+      name = "timestampstart"
       type = "timestamp"
     }
 
     columns {
-      name = "timestampEnd"
+      name = "timestampend"
       type = "timestamp"
     }
 
     columns {
-      name = "measuredDistance"
+      name = "measureddistance"
       type = "float"
     }
   }

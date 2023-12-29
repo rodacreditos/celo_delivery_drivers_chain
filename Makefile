@@ -1,8 +1,2 @@
 deploy_tribu_datapipeline:
-	cd tribu_datapipeline
-	make build_extraction
-	make build_processing
-	make deploy_extraction_docker_image
-	make deploy_processing_docker_image
-	make update_extraction_lambda_function
-	make update_processing_lambda_function
+	make -C tribu_datapipeline deploy_lambda_functions

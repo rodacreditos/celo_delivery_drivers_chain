@@ -1,5 +1,5 @@
 deploy_tribu_datapipeline:
-	cd ../tribu_datapipeline
+	cd tribu_datapipeline
 	make build_extraction
 	make build_processing
 	make deploy_extraction_docker_image

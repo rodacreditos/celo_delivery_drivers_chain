@@ -259,7 +259,7 @@ def handler(event, context):
 
     if "distance_filter" in trans_params:
         distance_filter = trans_params["distance_filter"]
-        df = filter_by_distance_range(df, distance_filter["min"], distance_filter["min"])
+        df = filter_by_distance_range(df, distance_filter["min"], distance_filter["max"])
 
     if "duration_filter" in trans_params:
         duration_filter = trans_params["duration_filter"]

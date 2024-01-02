@@ -98,12 +98,12 @@ def get_tribu_data(token, date):
     :raises Exception: If the API response status is not 200.
     """
     logger.info("Downloading routes from tribu API")
-    one_day = timedelta(days=1)
+    dashed_date = format_dashed_date(date)
     form_data = {
         "tipo": "ruta",
         "funcion": "verRutasSubAdmin",
-        "d_fechaIni": format_dashed_date(date),
-        "d_fechaFin": format_dashed_date(date + one_day)
+        "d_fechaIni": dashed_date,
+        "d_fechaFin": dashed_date
     }
 
     headers = {

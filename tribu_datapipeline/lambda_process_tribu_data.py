@@ -251,7 +251,7 @@ def handler(event, context):
     logger.info("Applying filters")
 
     # this are GPS devices that we cannot relate to any rappi driver
-    filter_by_missing_client_reference(df)
+    df = filter_by_missing_client_reference(df)
 
     # format datetime on input data in order to make it easier to do datetime operations
     format_datetime_column(df, "o_fecha_inicial", input_datetime_format)
@@ -259,11 +259,11 @@ def handler(event, context):
 
     if "distance_filter" in trans_params:
         distance_filter = trans_params["distance_filter"]
-        filter_by_distance_range(df, distance_filter["min"], distance_filter["min"])
+        df = filter_by_distance_range(df, distance_filter["min"], distance_filter["min"])
 
     if "duration_filter" in trans_params:
         duration_filter = trans_params["duration_filter"]
-        filter_by_duration_range(df, duration_filter["min"], duration_filter["max"])
+        df = filter_by_duration_range(df, duration_filter["min"], duration_filter["max"])
 
     logger.info("Preparing output data")
 

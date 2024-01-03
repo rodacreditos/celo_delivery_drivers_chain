@@ -29,7 +29,6 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
               "Type": "Task",
               "Resource": "${aws_lambda_function.tribu_extraction.arn}",
               "Parameters": {
-                "input.$": "$",
                 "dataset_type": "guajira"
               },
               "Next": "GuajiraProcessing"
@@ -38,7 +37,6 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
               "Type": "Task",
               "Resource": "${aws_lambda_function.tribu_processing.arn}",
               "Parameters": {
-                "input.$": "$",
                 "dataset_type": "guajira"
               },
               "End": true
@@ -52,7 +50,6 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
               "Type": "Task",
               "Resource": "${aws_lambda_function.tribu_extraction.arn}",
               "Parameters": {
-                "input.$": "$",
                 "dataset_type": "roda"
               },
               "Next": "RodaProcessing"
@@ -61,7 +58,6 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
               "Type": "Task",
               "Resource": "${aws_lambda_function.tribu_processing.arn}",
               "Parameters": {
-                "input.$": "$",
                 "dataset_type": "roda"
               },
               "End": true

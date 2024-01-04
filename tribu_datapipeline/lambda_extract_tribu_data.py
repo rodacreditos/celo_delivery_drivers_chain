@@ -42,7 +42,8 @@ import requests
 import argparse
 import logging
 import os
-from datetime import timedelta
+from datetime import datetime
+from typing import List, Dict
 from utils import dicts_to_csv, validate_date, read_json_from_s3, \
                     format_dashed_date, yesterday, logger, setup_local_logger, RODAAPP_BUCKET_PREFIX
 
@@ -50,7 +51,7 @@ from utils import dicts_to_csv, validate_date, read_json_from_s3, \
 # Tribu API endpoint
 TRIBU_URL = "https://tribugps.com/controlador.php"
 
-def login(dataset_type):
+def login(dataset_type: str) -> str:
     """
     Authenticate with the Tribu API using credentials based on the dataset type.
 
@@ -84,7 +85,7 @@ def login(dataset_type):
         raise Exception("\t".join(["Error:", response.status_code, response.text]))
 
 
-def get_tribu_data(token, date):
+def get_tribu_data(token: str, date: datetime.date) -> List[Dict]:
     """
     Fetch GPS data for Rappi drivers from the Tribu API for a given date.
 
@@ -118,7 +119,7 @@ def get_tribu_data(token, date):
         raise Exception("\t".join(["Error:", response.status_code, response.text]))
 
 
-def handler(event, context):
+def handler(event: Dict, context) -> None:
     """
     Handler function for processing Tribu API data retrieval tasks.
 

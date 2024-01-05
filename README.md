@@ -38,7 +38,7 @@ The following AWS services are deployed through the Terraform scripts to support
 - **Step Function Role (`sfn_role`)** and **CloudWatch Role (`cloudwatch_role`)**: Roles for Step Functions and CloudWatch to perform their respective tasks.
 
 ### CloudWatch Event Rule
-- **`daily-trigger-at-6-am`**: Triggers the Step Function State Machine daily at 6 AM UTC.
+- **`daily-trigger-at-6-am`**: Triggers the Step Function State Machine daily at 6 AM UTC (1 AM Bogotá/Colombia).
 
 ### Step Function State Machine
 - **`TribuStateMachine`**: Orchestrates the data processing workflow, running the Lambda functions in parallel for Guajira and Roda datasets.
@@ -112,7 +112,7 @@ The YAML files should contain the following sections:
     min: 2
     max: 90 # 1.5 Hours
 
-    distance_filter:
+  distance_filter:
     min: 147
   ```
 
@@ -124,6 +124,8 @@ Both the extraction and processing scripts accept an optional parameter named `p
 Example usage:
 - When running a backfill or if you need to process data for a specific date, you can pass the `processing_date` parameter to the scripts.
 
+## Running a Backfill for Tribu Data Pipeline
+
 #### Specifying `processing_date` in Backfill
 For running a backfill, the `processing_date` can be specified as follows:
 1. Navigate to `tribu_datapipeline`.
@@ -133,11 +135,6 @@ For running a backfill, the `processing_date` can be specified as follows:
    make backfill_extracting DATASET_TYPE=guajira DATE=YYYY-MM-DD
    make backfill_processing DATASET_TYPE=guajira DATE=YYYY-MM-DD
 
-## Running a Backfill for Tribu Data Pipeline
-To run a backfill for a specific date:
-1. Navigate to `tribu_datapipeline`.
-2. Execute `make backfill_extracting DATASET_TYPE=guajira DATE=YYYY-MM-DD`.
-3. Execute `make backfill_processing DATASET_TYPE=guajira DATE=YYYY-MM-DD`.
    - This approach allows for partial backfills, enabling the extraction and processing steps to be executed separately as needed.
 
 ## Data Storage and Structure

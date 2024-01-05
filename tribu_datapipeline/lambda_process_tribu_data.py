@@ -141,22 +141,27 @@ def format_output_df(df: pd.DataFrame, column_rename_map: Dict[str, str] = COLUM
 
 
 def filter_by_distance_range(df: pd.DataFrame, min_dist: float = MINIMUM_DISTANCE, 
-                             max_dist: float = MAXIMUM_DISTANCE) -> pd.DataFrame:
+                             max_dist: float = None) -> pd.DataFrame:
     """
-    Filters a DataFrame based on a specified distance range.
+    Filters a DataFrame based on a specified distance range. If max_dist is not specified,
+    then maximum distance filter is not applied.
 
     :param df: DataFrame to filter.
     :param min_dist: Minimum distance for filtering. Defaults to MINIMUM_DISTANCE.
-    :param max_dist: Maximum distance for filtering. Defaults to MAXIMUM_DISTANCE.
+    :param max_dist: Maximum distance for filtering. Defaults to None.
     :return: A DataFrame filtered by the specified distance range.
     """
-    return df[(df['f_distancia'] > min_dist) & (df['f_distancia'] <= max_dist)]
+    df = df[(df['f_distancia'] > min_dist)]
+    if max_dist:
+        df = df[(df['f_distancia'] <= max_dist)]
+    return df
 
 
 def filter_by_duration_range(df: pd.DataFrame, min_dur: float = MINIMUM_DURATION, 
-                             max_dur: float = MAXIMUM_DURATION) -> pd.DataFrame:
+                             max_dur: float = None) -> pd.DataFrame:
     """
-    Filters a DataFrame based on a duration in minutes range.
+    Filters a DataFrame based on a duration in minutes range. If max_dur is not specified,
+    then maximum duration filter is not applied.
 
     This function calculates the duration in minutes between two timestamps 
     in the DataFrame columns 'o_fecha_final' and 'o_fecha_inicial'. It then filters 
@@ -170,7 +175,7 @@ def filter_by_duration_range(df: pd.DataFrame, min_dur: float = MINIMUM_DURATION
     - min_dur (float): The minimum duration in minutes for filtering. 
       Defaults to MINIMUM_DURATION.
     - max_dur (float): The maximum duration in minutes for filtering. 
-      Defaults to MAXIMUM_DURATION.
+      Defaults to None.
 
     Returns:
     - pandas.DataFrame: A filtered DataFrame where the 'durationMinutes' 
@@ -178,8 +183,11 @@ def filter_by_duration_range(df: pd.DataFrame, min_dur: float = MINIMUM_DURATION
       The 'durationMinutes' column is added to the DataFrame to show the 
       calculated duration for each row.
     """
-    df['durationMinutes'] = (df['o_fecha_final'] - df['o_fecha_inicial']).dt.total_seconds() / 60
-    return df[(df['durationMinutes'] > min_dur) & (df['durationMinutes'] <= max_dur)]
+    df['durationMinutes'] = (df['o_fecha_final'] - df['o_fecha_inicial']).dt.total_seconds() / 600
+    df = df[(df['durationMinutes'] > min_dur)]
+    if max_dur:
+        df = df[(df['durationMinutes'] <= max_dur)]
+    return df
 
 
 def filter_by_missing_client_reference(df: pd.DataFrame) -> pd.DataFrame:
@@ -264,11 +272,11 @@ def handler(event: Dict[str, Any], context: Any) -> None:
 
     if "distance_filter" in trans_params:
         distance_filter = trans_params["distance_filter"]
-        df = filter_by_distance_range(df, distance_filter["min"], distance_filter["max"])
+        df = filter_by_distance_range(df, distance_filter["min"], distance_filter.get("max"))
 
     if "duration_filter" in trans_params:
         duration_filter = trans_params["duration_filter"]
-        df = filter_by_duration_range(df, duration_filter["min"], duration_filter["max"])
+        df = filter_by_duration_range(df, duration_filter["min"], duration_filter.get("max"))
 
     logger.info("Preparing output data")
 

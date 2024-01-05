@@ -113,24 +113,29 @@ def upload_pandas_to_s3(s3_path, df):
         upload_buffer_to_s3(s3_path, csv_buffer)
         
 
-def format_output_df(df, column_rename_map=COLUMN_RENAME_MAP, output_datetime_format=OUTPUT_DATETIME_FORMAT):
+def format_output_df(df: pd.DataFrame, column_rename_map: Dict[str, str] = COLUMN_RENAME_MAP, 
+                     output_datetime_format: str = OUTPUT_DATETIME_FORMAT) -> pd.DataFrame:
     """
-    This function renames the columns of the input DataFrame according to the 
-    column_rename_map dictionary and writes the resulting DataFrame to a CSV file at 
-    the specified output path. The order of the columns in the output CSV will follow 
-    the order they are defined in column_rename_map. It also fix the timesatmp output format.
-    
-    :param df (pandas.DataFrame): The DataFrame to be processed.
-    :param column_rename_map (dict): The column_rename_map for renaming. Defaults to COLUMN_RENAME_MAP.
+    Formats datetime fields, renames columns, and reorders columns of a DataFrame.
+
+    This function first formats the datetime fields 'o_fecha_inicial' and 'o_fecha_final'
+    to a specific string format, then renames and reorders the columns based on the 
+    column_rename_map.
+
+    :param df: The DataFrame to be processed.
+    :param column_rename_map: A map for renaming columns. Defaults to COLUMN_RENAME_MAP.
+    :param output_datetime_format: The format for datetime columns. Defaults to OUTPUT_DATETIME_FORMAT.
+    :return: A DataFrame with formatted datetime fields and renamed columns.
     """
-    logger.info("Selecting and renaming columns")
-    # Rename columns and reorder according to column_rename_map
-    df = df[list(column_rename_map.keys())].rename(columns=column_rename_map)
-    
-	# Fix the output format for timestamp columns according to output_datetime_format
-    df['timestampStart'] = df['timestampStart'].dt.strftime(output_datetime_format)
-    df['timestampEnd'] = df['timestampEnd'].dt.strftime(output_datetime_format)
-    
+    logger.info("Formatting datetime fields, selecting, and renaming columns")
+
+    # Format datetime fields before renaming
+    df['o_fecha_inicial'] = pd.to_datetime(df['o_fecha_inicial']).dt.strftime(output_datetime_format)
+    df['o_fecha_final'] = pd.to_datetime(df['o_fecha_final']).dt.strftime(output_datetime_format)
+
+    # Select and rename columns based on column_rename_map
+    df = df[[col for col in column_rename_map.keys() if col in df.columns]].rename(columns=column_rename_map)
+
     return df
 
 

@@ -25,6 +25,41 @@ To update Lambda functions and Docker images:
    - Builds and uploads new Docker images for the extracting and processing scripts to AWS Elastic Container Registry (ECR).
    - Updates the AWS Lambda functions to use the newly uploaded Docker images, ensuring they run the latest version of the scripts.
 
+## AWS Infrastructure Overview
+
+The following AWS services are deployed through the Terraform scripts to support the data pipeline:
+
+### Lambda Functions
+- **`extract_tribu_data` and `process_tribu_data`**: These functions handle the extraction and processing of data, respectively. They're deployed as Docker images to AWS Lambda.
+
+### IAM Roles and Policies
+- **Lambda Execution Role (`lambda_exec_role`)**: A role for the Lambda functions, allowing them to assume necessary permissions.
+- **Lambda S3 Access Policy**: Grants the Lambda functions access to specific S3 operations.
+- **Step Function Role (`sfn_role`)** and **CloudWatch Role (`cloudwatch_role`)**: Roles for Step Functions and CloudWatch to perform their respective tasks.
+
+### CloudWatch Event Rule
+- **`daily-trigger-at-6-am`**: Triggers the Step Function State Machine daily at 6 AM UTC.
+
+### Step Function State Machine
+- **`TribuStateMachine`**: Orchestrates the data processing workflow, running the Lambda functions in parallel for Guajira and Roda datasets.
+
+### Glue Catalog Database and Table
+- **Database (`rappi_driver_db`)**: Hosts the `routes` table.
+- **Table (`rappi_driver_routes`)**: Stores the processed data and is designed for querying with tools like Amazon Athena.
+
+### Accessing the Services
+- Lambda Functions, IAM Roles/Policies, and the CloudWatch Event Rule can be accessed and managed via the AWS Management Console or AWS CLI.
+- The Step Function State Machine's execution can be monitored through the AWS Management Console.
+- The Glue Catalog Database and Table are accessible for queries through Amazon Athena or other AWS data services.
+
+### Documentation
+- For detailed documentation on each service, refer to the AWS official documentation. Here are some starting points:
+  - [AWS Lambda](https://docs.aws.amazon.com/lambda/)
+  - [IAM](https://docs.aws.amazon.com/IAM/)
+  - [Amazon CloudWatch Events](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/)
+  - [AWS Step Functions](https://docs.aws.amazon.com/step-functions/)
+  - [AWS Glue Catalog](https://docs.aws.amazon.com/glue/)
+
 ## Data Extraction and Processing
 
 ### Credentials for Tribu API Access

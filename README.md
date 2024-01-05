@@ -134,6 +134,7 @@ For running a backfill, the `processing_date` can be specified as follows:
    ```shell
    make backfill_extracting DATASET_TYPE=guajira DATE=YYYY-MM-DD
    make backfill_processing DATASET_TYPE=guajira DATE=YYYY-MM-DD
+   ```
 
    - This approach allows for partial backfills, enabling the extraction and processing steps to be executed separately as needed.
 

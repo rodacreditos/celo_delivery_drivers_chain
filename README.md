@@ -139,9 +139,35 @@ For running a backfill, the `processing_date` can be specified as follows:
    - This approach allows for partial backfills, enabling the extraction and processing steps to be executed separately as needed.
 
 ## Data Storage and Structure
+
+The data pipeline utilizes specific S3 bucket prefixes for storing data at different stages:
+
 ### S3 Data Storage
 - Raw data: `s3://rodaapp-rappidriverchain/tribu_data/`
 - Processed data: `s3://rodaapp-rappidriverchain/rappi_driver_routes/`
+
+### Raw Data in `tribu_data` Bucket Prefix
+
+- The raw data from the Tribu API is stored in the `tribu_data` bucket prefix.
+- File Structure: The files are organized by date and source. For example:
+
+   ```shell
+   tribu_data/date=YYYY-MM-DD/source=roda/tribu_roda_routes.csv
+   tribu_data/date=YYYY-MM-DD/source=guajira/tribu_guajira_routes.csv
+   ```
+
+   - This structure holds the raw data for each dataset type (Roda and Guajira) on a specific date.
+
+### Processed Data in `rappi_driver_routes` Bucket
+- The processed data is stored in the `rappi_driver_routes` bucket prefix.
+- File Structure: Similar to the raw data, the processed files are organized by date and source. For example:
+
+   ```shell
+   rappi_driver_routes/date=YYYY-MM-DD/source=tribu_roda/tribu_roda_routes.csv
+   rappi_driver_routes/date=YYYY-MM-DD/source=tribu_guajira/tribu_guajira_routes.csv
+   ```
+   - This structure reflects the processed data for each dataset type and date.
+   - This organization of data in S3 ensures ease of access and clear separation between raw and processed data, which is essential for efficient data management and retrieval.
 
 ### Data Handling
 - `extracting` pushes data to the `tribu_data` bucket prefix.

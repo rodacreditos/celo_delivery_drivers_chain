@@ -53,6 +53,7 @@ import logging
 import os
 import pandas as pd
 from io import BytesIO
+from typing import Dict, Any
 from utils import validate_date, read_from_s3, read_yaml_from_s3, upload_buffer_to_s3, format_dashed_date, yesterday, logger, \
     				setup_local_logger, RODAAPP_BUCKET_PREFIX
 
@@ -70,7 +71,7 @@ INPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 OUTPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
-def get_transformation_parameters(dataset_type):
+def get_transformation_parameters(dataset_type: str) -> Dict[str, Any]:
     """
     Get transformation parameters based on the dataset type. Expected transformation parameters
     are: maximun and minimum distance, maximun and minimum duration, a column name map for renaming
@@ -88,7 +89,7 @@ def get_transformation_parameters(dataset_type):
     return read_yaml_from_s3(params_path)
 
 
-def read_csv_into_pandas_from_s3(s3_path):
+def read_csv_into_pandas_from_s3(s3_path: str) -> pd.DataFrame:
     """
     Read a csv file from S3 and return its content into a pandas dataframe.
 
@@ -100,7 +101,7 @@ def read_csv_into_pandas_from_s3(s3_path):
     return pd.read_csv(BytesIO(csv_string.encode()))
 
 
-def upload_pandas_to_s3(s3_path, df):
+def upload_pandas_to_s3(s3_path: str, df: pd.DataFrame) -> None:
     """
     Upload a pandas dataframe to S3.
 
@@ -139,25 +140,23 @@ def format_output_df(df: pd.DataFrame, column_rename_map: Dict[str, str] = COLUM
     return df
 
 
-def filter_by_distance_range(df, min_dist=MINIMUM_DISTANCE, max_dist=MAXIMUM_DISTANCE):
+def filter_by_distance_range(df: pd.DataFrame, min_dist: float = MINIMUM_DISTANCE, 
+                             max_dist: float = MAXIMUM_DISTANCE) -> pd.DataFrame:
     """
-    Filter a DataFrame based on a distance range.
+    Filters a DataFrame based on a specified distance range.
 
-    Parameters:
-    df (pandas.DataFrame): The DataFrame to filter.
-    min_dist (float): The minimum distance for filtering. Defaults to MINIMUM_DISTANCE.
-    max_dist (float): The maximum distance for filtering. Defaults to MAXIMUM_DISTANCE.
-
-    Returns:
-    pandas.DataFrame: A filtered DataFrame where the 'f_distancia' column values 
-                      fall within the specified distance range.
+    :param df: DataFrame to filter.
+    :param min_dist: Minimum distance for filtering. Defaults to MINIMUM_DISTANCE.
+    :param max_dist: Maximum distance for filtering. Defaults to MAXIMUM_DISTANCE.
+    :return: A DataFrame filtered by the specified distance range.
     """
     return df[(df['f_distancia'] > min_dist) & (df['f_distancia'] <= max_dist)]
 
 
-def filter_by_duration_range(df, min_dur=MINIMUM_DURATION, max_dur=MAXIMUM_DURATION):
+def filter_by_duration_range(df: pd.DataFrame, min_dur: float = MINIMUM_DURATION, 
+                             max_dur: float = MAXIMUM_DURATION) -> pd.DataFrame:
     """
-    Filter a DataFrame based on a duration in minutes range.
+    Filters a DataFrame based on a duration in minutes range.
 
     This function calculates the duration in minutes between two timestamps 
     in the DataFrame columns 'o_fecha_final' and 'o_fecha_inicial'. It then filters 
@@ -183,9 +182,9 @@ def filter_by_duration_range(df, min_dur=MINIMUM_DURATION, max_dur=MAXIMUM_DURAT
     return df[(df['durationMinutes'] > min_dur) & (df['durationMinutes'] <= max_dur)]
 
 
-def filter_by_missing_client_reference(df):
+def filter_by_missing_client_reference(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Filter a DataFrame to include only rows with non-null client references.
+    Filters a DataFrame to include only rows with non-null client references.
 
     This function filters the DataFrame to retain only those rows where the 
     'Referencia' column is not null. The 'Referencia' column represents a 
@@ -207,9 +206,10 @@ def filter_by_missing_client_reference(df):
     return df[df["Referencia"].notnull()]
 
 
-def format_datetime_column(df, dt_column, input_datetime_format=INPUT_DATETIME_FORMAT):
+def format_datetime_column(df: pd.DataFrame, dt_column: str, 
+                           input_datetime_format: str = INPUT_DATETIME_FORMAT) -> None:
     """
-    Convert and format a datetime column in a DataFrame.
+    Converts and formats a datetime column in a DataFrame.
 
     Parameters:
     df (pandas.DataFrame): The DataFrame containing the datetime column to be formatted.
@@ -222,7 +222,7 @@ def format_datetime_column(df, dt_column, input_datetime_format=INPUT_DATETIME_F
     df[dt_column] = pd.to_datetime(df[dt_column], format=input_datetime_format)
 
 
-def handler(event, context):
+def handler(event: Dict[str, Any], context: Any) -> None:
     """
     Handler function for processing Tribu data.
 

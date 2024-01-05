@@ -167,7 +167,8 @@ The data pipeline utilizes specific S3 bucket prefixes for storing data at diffe
    rappi_driver_routes/date=YYYY-MM-DD/source=tribu_guajira/tribu_guajira_routes.csv
    ```
    - This structure reflects the processed data for each dataset type and date.
-   - This organization of data in S3 ensures ease of access and clear separation between raw and processed data, which is essential for efficient data management and retrieval.
+
+This organization of data in S3 ensures ease of access and clear separation between raw and processed data, which is essential for efficient data management and retrieval.
 
 ### Data Handling
 - `extracting` pushes data to the `tribu_data` bucket prefix.

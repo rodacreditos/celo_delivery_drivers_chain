@@ -190,6 +190,29 @@ def filter_by_duration_range(df: pd.DataFrame, min_dur: float = MINIMUM_DURATION
     return df
 
 
+def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float) -> pd.DataFrame:
+    """
+    Fixes 'f_distancia' in the given DataFrame based on the duration in minutes and the distance in meters.
+
+    This function calculates the duration in minutes between 'o_fecha_final' and 'o_fecha_inicial' timestamps 
+    in the DataFrame. It then computes the maximum distance expected based on the duration, using the
+    maximum distance per hour (max_distance_per_hour). The 'f_distancia' column is then adjusted to ensure 
+    that it does not exceed the maximum expected distance for the calculated duration.
+
+    Parameters:
+    - df (pandas.DataFrame): DataFrame with 'o_fecha_final' and 'o_fecha_inicial' timestamp columns.
+    - max_distance_per_hour (float): Maximum distance expected in meters per hour.
+
+    Returns:
+    - pandas.DataFrame: Modified DataFrame with adjusted 'f_distancia'. 
+      Includes 'durationMinutes' and 'maxExpectedDistance' columns for reference.
+    """
+    df['durationMinutes'] = (df['o_fecha_final'] - df['o_fecha_inicial']).dt.total_seconds() / 60
+    df['maxExpectedDistance'] = (df['durationMinutes'] / 60) * max_distance_per_hour
+    df.loc[df['f_distancia'] > df['maxExpectedDistance'], 'f_distancia'] = df['maxExpectedDistance']
+    return df
+
+
 def filter_by_missing_client_reference(df: pd.DataFrame) -> pd.DataFrame:
     """
     Filters a DataFrame to include only rows with non-null client references.
@@ -277,6 +300,10 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     if "duration_filter" in trans_params:
         duration_filter = trans_params["duration_filter"]
         df = filter_by_duration_range(df, duration_filter["min"], duration_filter.get("max"))
+
+    if "distance_fix" in trans_params:
+        distance_fix = trans_params["distance_fix"]
+        df = fix_distance_by_max_per_hour(df, distance_fix["expected_max_per_hour"])
 
     logger.info("Preparing output data")
 

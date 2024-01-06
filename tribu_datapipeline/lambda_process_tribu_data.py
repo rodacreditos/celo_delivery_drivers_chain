@@ -151,9 +151,9 @@ def filter_by_distance_range(df: pd.DataFrame, min_dist: float = MINIMUM_DISTANC
     :param max_dist: Maximum distance for filtering. Defaults to None.
     :return: A DataFrame filtered by the specified distance range.
     """
-    df = df[(df['f_distancia'] > min_dist)]
+    df = df[df['f_distancia'] > float(min_dist)]
     if max_dist:
-        df = df[(df['f_distancia'] <= max_dist)]
+        df = df[df['f_distancia'] <= float(max_dist)]
     return df
 
 
@@ -183,10 +183,10 @@ def filter_by_duration_range(df: pd.DataFrame, min_dur: float = MINIMUM_DURATION
       The 'durationMinutes' column is added to the DataFrame to show the 
       calculated duration for each row.
     """
-    df['durationMinutes'] = (df['o_fecha_final'] - df['o_fecha_inicial']).dt.total_seconds() / 600
-    df = df[(df['durationMinutes'] > min_dur)]
+    df['durationMinutes'] = (df['o_fecha_final'] - df['o_fecha_inicial']).dt.total_seconds() / 60
+    df = df[df['durationMinutes'] > float(min_dur)]
     if max_dur:
-        df = df[(df['durationMinutes'] <= max_dur)]
+        df = df[df['durationMinutes'] <= float(max_dur)]
     return df
 
 

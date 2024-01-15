@@ -60,6 +60,53 @@ The following AWS services are deployed through the Terraform scripts to support
   - [AWS Step Functions](https://docs.aws.amazon.com/step-functions/)
   - [AWS Glue Catalog](https://docs.aws.amazon.com/glue/)
 
+## AWS Cost Analysis Report
+
+This section provides an overview of the estimated costs for our AWS infrastructure, specifically focusing on Lambda functions for extraction and processing, AWS Step Functions, Athena queries, and the AWS Glue Data Catalog. These estimates are based on current usage patterns and AWS pricing as of April 2023.
+
+### AWS Lambda Functions
+
+###
+
+#### Extraction Lambda Function
+- **Usage**: Invoked twice daily, once for roda and once for guajira data.
+- **Average Execution Duration**: ~5.8 seconds (roda), ~4.1 seconds (guajira).
+- **Memory Allocation**: 128 MB.
+- **Estimated Monthly Cost**: Lambda costs - Without Free Tier (monthly): 0.00 USD (According to the AWS price calculator)
+
+#### Processing Lambda Function
+- **Usage**: Invoked twice daily, following the extraction process for both data sets.
+- **Average Execution Duration**: ~0.42 seconds (roda), ~0.38 seconds (guajira).
+- **Memory Allocation**: 128 MB (fully utilized).
+- **Estimated Monthly Cost**: Lambda costs - Without Free Tier (monthly): 0.00 USD
+
+### AWS Step Functions
+- **Usage**: Orchestrates the execution of Lambda functions daily. It has one step machine with 4 transitions: extracting and processing steps for both roda an guajira datasets.
+- **Estimated Daily/Monthly Cost**: Standard Workflows pricing (monthly): 0.00 USD (The AWS Step Functions Free Tier does not automatically expire at the end of your 12 month AWS Free Tier term, and is available to both existing and new AWS customers indefinitely. For example if we run 30 queries in a month )
+
+### AWS Athena Queries
+- **Usage**: Run weekly for data analysis.
+- **Average Data Scanned per Query**: Based on the file sizes of 63KB (roda) and 8.2KB (guajira).
+- **Estimated Monthly Cost**: SQL queries with per query cost (monthly): 0.00 USD (This will keep true for a while, until we have enough data to query then prices could change.)
+
+### AWS Glue Data Catalog
+- **Usage**: Maintains metadata for a single table.
+- **Cost Consideration**: Likely minimal or covered under the AWS Free Tier if the table is not frequently modified and the number of objects is low.
+
+### Cost Calculation Methodology
+- Costs for Lambda functions are estimated based on the number of requests, execution duration, and memory allocation.
+- AWS Step Functions costs are calculated per state transition.
+- Athena costs are based on the amount of data scanned per query.
+- AWS pricing for Lambda, Step Functions, and Athena can be updated using the [AWS Price Calculator](https://calculator.aws/#/).
+
+### Notes
+- These cost estimations are approximations. Actual costs may vary based on exact usage, AWS pricing changes, and specific configurations.
+- Regular monitoring of AWS usage and costs through the AWS Management Console is advised for accurate tracking and optimization.
+
+---
+
+For more detailed information or updates to this cost analysis, please refer to our internal documentation or contact the project's system administrators.
+
 ## Data Extraction and Processing
 
 ### Credentials for Tribu API Access

@@ -141,6 +141,9 @@ def format_output_df(df: pd.DataFrame, column_rename_map: Dict[str, str] = COLUM
     df['o_fecha_inicial'] = convert_datetime(df, 'o_fecha_inicial', output_datetime_format)
     df['o_fecha_final'] = convert_datetime(df, 'o_fecha_final', output_datetime_format)
 
+    # Rounding the f_distancia values to the nearest integer
+    df['f_distancia'] = df['f_distancia'].round(0).astype(int)
+
     # Select and rename columns based on column_rename_map
     df = df[[col for col in column_rename_map.keys() if col in df.columns]].rename(columns=column_rename_map)
 

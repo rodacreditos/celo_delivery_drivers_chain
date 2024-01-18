@@ -120,8 +120,9 @@ def format_output_df(df: pd.DataFrame, column_rename_map: Dict[str, str] = COLUM
     Formats datetime fields, renames columns, and reorders columns of a DataFrame.
 
     This function first formats the datetime fields 'o_fecha_inicial' and 'o_fecha_final'
-    to a specific string format, then renames and reorders the columns based on the 
-    column_rename_map.
+    to a specific string format. If output_datetime_format is set as `unix`, then it will format
+    'o_fecha_inicial' and 'o_fecha_final' as unix timestamp fotmat (number of seconds since January 1, 1970.).
+    Finally it renames and reorders the columns based on the column_rename_map.
 
     :param df: The DataFrame to be processed.
     :param column_rename_map: A map for renaming columns. Defaults to COLUMN_RENAME_MAP.

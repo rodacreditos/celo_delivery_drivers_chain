@@ -131,7 +131,7 @@ def format_output_df(df: pd.DataFrame, column_rename_map: Dict[str, str] = COLUM
     logger.info("Formatting datetime fields, selecting, and renaming columns")
 
     def convert_datetime(df, datetime_column, output_datetime_format):
-        if  output_datetime_format is 'unix':
+        if  output_datetime_format == 'unix':
             return pd.to_datetime(df[datetime_column]).astype('int64') // 10**9
         else:
             return pd.to_datetime(df[datetime_column]).dt.strftime(output_datetime_format)

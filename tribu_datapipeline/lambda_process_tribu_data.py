@@ -130,9 +130,15 @@ def format_output_df(df: pd.DataFrame, column_rename_map: Dict[str, str] = COLUM
     """
     logger.info("Formatting datetime fields, selecting, and renaming columns")
 
+    def convert_datetime(df, datetime_column, output_datetime_format):
+        if  output_datetime_format is 'unix':
+            return pd.to_datetime(df[datetime_column]).astype('int64') // 10**9
+        else:
+            return pd.to_datetime(df[datetime_column]).dt.strftime(output_datetime_format)
+
     # Format datetime fields before renaming
-    df['o_fecha_inicial'] = pd.to_datetime(df['o_fecha_inicial']).dt.strftime(output_datetime_format)
-    df['o_fecha_final'] = pd.to_datetime(df['o_fecha_final']).dt.strftime(output_datetime_format)
+    df['o_fecha_inicial'] = convert_datetime(df, 'o_fecha_inicial', output_datetime_format)
+    df['o_fecha_final'] = convert_datetime(df, 'o_fecha_final', output_datetime_format)
 
     # Select and rename columns based on column_rename_map
     df = df[[col for col in column_rename_map.keys() if col in df.columns]].rename(columns=column_rename_map)

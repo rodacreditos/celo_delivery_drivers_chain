@@ -213,30 +213,6 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
     return df
 
 
-def filter_by_missing_client_reference(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Filters a DataFrame to include only rows with non-null client references.
-
-    This function filters the DataFrame to retain only those rows where the 
-    'Referencia' column is not null. The 'Referencia' column represents a 
-    reference to the client that holds the GPS device. Rows without a client reference (null 
-    values in 'Referencia') likely indicate routes that can be discarded, as 
-    they may represent test devices or devices not yet assigned to a client. 
-    This filtering is crucial for focusing on relevant data. Later we could generate 
-    alerts when detecting this null values in 'Referencia' to investigate whether any unassigned devices 
-    are due to oversight or are intentional for testing purposes.
-
-    Parameters:
-    - df (pandas.DataFrame): The DataFrame to filter. Must contain a 'Referencia' column.
-
-    Returns:
-    - pandas.DataFrame: A filtered DataFrame containing only rows where the 
-      'Referencia' column is not null, indicating the presence of a client 
-      reference and hence, a relevant route.
-    """
-    return df[df["Referencia"].notnull()]
-
-
 def format_datetime_column(df: pd.DataFrame, dt_column: str, 
                            input_datetime_format: str = INPUT_DATETIME_FORMAT) -> None:
     """
@@ -285,9 +261,6 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     df = read_csv_into_pandas_from_s3(input_path)
 
     logger.info("Applying filters")
-
-    # this are GPS devices that we cannot relate to any rappi driver
-    df = filter_by_missing_client_reference(df)
 
     # format datetime on input data in order to make it easier to do datetime operations
     format_datetime_column(df, "o_fecha_inicial", input_datetime_format)

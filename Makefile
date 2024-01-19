@@ -15,3 +15,6 @@ deploy_guajira_tribu_credentials: tribu_guajira_credentials.json
 
 deploy_roda_airtable_credentials: roda_airtable_credentials.yaml
 	aws s3 cp ./roda_airtable_credentials.yaml s3://rodaapp-rappidriverchain/credentials/
+
+deploy_roda_celo_credentials: roda_celo_credentials.yaml
+	aws s3 cp ./roda_celo_credentials.yaml s3://rodaapp-rappidriverchain/credentials/

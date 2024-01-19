@@ -168,3 +168,6 @@ cython_debug/
 
 # I don't want to share any local credential
 tribu-api-cred
+
+# we don't want to upload to the repo any yaml configuration file, they should be in s3
+*.yaml

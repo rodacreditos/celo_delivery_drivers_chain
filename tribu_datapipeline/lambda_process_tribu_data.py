@@ -144,6 +144,9 @@ def format_output_df(df: pd.DataFrame, column_rename_map: Dict[str, str] = COLUM
     # Rounding the f_distancia values to the nearest integer
     df['f_distancia'] = df['f_distancia'].round(0).astype(int)
 
+    # Adding cello_address in the output.
+    column_rename_map['celo_address'] = 'celo_address'
+
     # Select and rename columns based on column_rename_map
     df = df[[col for col in column_rename_map.keys() if col in df.columns]].rename(columns=column_rename_map)
 
@@ -223,6 +226,17 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
     return df
 
 
+def add_celo_contract_address(df):
+    logger.info("Fetching celo_address_map...")
+    gps_to_celo_address_map_path = os.path.join(RODAAPP_BUCKET_PREFIX, "roda_metadata", "gps_to_celo_address_map.yaml")
+    celo_address_map = read_yaml_from_s3(gps_to_celo_address_map_path)
+    
+    # Get Celo Address for every gpsID
+    df['celo_address'] = df['k_dispositivo'].map(celo_address_map)
+
+    return df
+
+
 def format_datetime_column(df: pd.DataFrame, dt_column: str, 
                            input_datetime_format: str = INPUT_DATETIME_FORMAT) -> None:
     """
@@ -287,6 +301,8 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     if "distance_fix" in trans_params:
         distance_fix = trans_params["distance_fix"]
         df = fix_distance_by_max_per_hour(df, distance_fix["expected_max_per_hour"])
+
+    df = add_celo_contract_address(df)
 
     logger.info("Preparing output data")
 

@@ -1,6 +1,16 @@
 AWS_ACCOUNT_ID := $(shell aws sts get-caller-identity --query "Account" --output text)
 AWS_REGION := "us-east-2"
 
+build_sync:
+	docker build -t rodaapp:gps_to_celo_map_sync -f ./Dockerfile_sync .
+
+run_sync:
+	docker run --rm \
+		-v ~/.aws:/root/.aws \
+		-v $(shell pwd):/var/task \
+		-i --entrypoint python rodaapp:gps_to_celo_map_sync \
+		lambda_sync_gps_to_celo_address_map.py
+
 build_extraction:
 	docker build -t rodaapp:tribu_extraction -f ./Dockerfile_extraction .
 

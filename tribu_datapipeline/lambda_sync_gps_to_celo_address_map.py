@@ -69,6 +69,26 @@ def generate_celo_address(celo_credentials, index=0):
 
 
 def get_gps_to_celo_map():
+    """
+    Retrieves a mapping of GPS IDs to Celo addresses from an Airtable database.
+
+    This function connects to Airtable to fetch contact records from the 'Contactos' table. It specifically looks for 
+    contacts in the 'TRIBU_PIPELINE_VIEW' view that have at least one associated GPS ID. For each contact, it maps 
+    the GPS IDs to a corresponding Celo address. If a Celo address is not present, it generates a new one using the 
+    client's ID. After processing, it updates the Airtable contacts with any newly created Celo addresses to maintain data integrity.
+
+    Raises:
+        Exception: If a GPS ID is found to be associated with more than one credit/contact, indicating a data inconsistency.
+
+    Returns:
+        dict: A dictionary mapping GPS IDs (str) to Celo addresses (str). The keys of the dictionary are GPS IDs, and 
+              the values are the corresponding Celo addresses.
+
+    Notes:
+        - This function assumes that Airtable credentials and Celo credentials are stored in a specific structure in S3 buckets.
+        - It updates the 'Contactos' table in Airtable with new Celo addresses where necessary.
+        - The function logs various stages of processing for monitoring and debugging purposes.
+    """
     logger.info("Fetching Airtable credentials...")
     airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
     airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
@@ -119,11 +139,8 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     Handler function for processing Tribu data.
 
     Intended for use as the entry point in AWS Lambda, but also supports local execution.
-    The 'dataset_type' in the event determines whether the data is primarily motorbike ('roda') 
-    or bicycle ('guajira') related.
 
-    :param event: A dictionary containing 'dataset_type' and optionally 'processing_date'.
-                  If 'processing_date' is not provided, defaults to yesterday's date.
+    :param event: A dictionary with input parameters (unused in this function)
     :param context: Context information provided by AWS Lambda (unused in this function).
     """
     logger.setLevel(logging.INFO)

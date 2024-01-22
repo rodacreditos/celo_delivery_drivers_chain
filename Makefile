@@ -18,3 +18,6 @@ upload_roda_airtable_credentials: roda_airtable_credentials.yaml
 
 upload_roda_celo_credentials: roda_celo_credentials.yaml
 	aws s3 cp ./roda_celo_credentials.yaml s3://rodaapp-rappidriverchain/credentials/
+
+upload_tribu_known_unassigned_divices: tribu_known_unassigned_divices.yaml
+	aws s3 cp ./tribu_known_unassigned_divices.yaml s3://rodaapp-rappidriverchain/tribu_metadata/

@@ -20,6 +20,17 @@ resource "aws_lambda_function" "tribu_processing" {
   timeout = 600  # Timeout in seconds (current value is 10 minutes)
 }
 
+resource "aws_lambda_function" "gps_to_celo_map_sync" {
+  function_name = "sync_gps_to_celo_map"
+
+  package_type = "Image"
+  image_uri    = "062988117074.dkr.ecr.us-east-2.amazonaws.com/rodaapp:gps_to_celo_map_sync"
+
+  role    = aws_iam_role.lambda_exec_role.arn
+
+  timeout = 600  # Timeout in seconds (current value is 10 minutes)
+}
+
 resource "aws_iam_role" "lambda_exec_role" {
   name = "lambda_exec_role"
 

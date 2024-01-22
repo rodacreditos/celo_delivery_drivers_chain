@@ -17,10 +17,16 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
   definition = <<EOF
 {
   "Comment": "Tribu State Machine",
-  "StartAt": "ParallelProcessing",
+  "StartAt": "GpsToCeloMapping",
   "States": {
+    "GpsToCeloMapping": {
+      "Type": "Task",
+      "Resource": "${aws_lambda_function.gps_to_celo_map_sync.arn}",
+      "Next": "ParallelProcessing"
+    },
     "ParallelProcessing": {
       "Type": "Parallel",
+      "Next": "FinalState",
       "Branches": [
         {
           "StartAt": "GuajiraExtraction",
@@ -64,7 +70,11 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
             }
           }
         }
-      ],
+      ]
+    },
+    "FinalState": {
+      "Type": "Pass",
+      "Result": "Workflow completed",
       "End": true
     }
   }
@@ -102,6 +112,7 @@ resource "aws_iam_role_policy" "sfn_policy" {
         ],
         Effect = "Allow",
         Resource = [
+          aws_lambda_function.gps_to_celo_map_sync.arn,
           aws_lambda_function.tribu_extraction.arn,
           aws_lambda_function.tribu_processing.arn
         ]

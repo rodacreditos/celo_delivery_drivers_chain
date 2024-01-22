@@ -272,6 +272,26 @@ def format_datetime_column(df: pd.DataFrame, dt_column: str,
     df[dt_column] = pd.to_datetime(df[dt_column], format=input_datetime_format)
 
 
+def get_missing_celo_addresses(df):
+    """
+    Filters and returns rows from the input DataFrame where the 'celo_address' is missing.
+    
+    This function creates and returns a new DataFrame consisting only of rows from the input DataFrame 
+    where the 'celo_address' column is missing.
+
+    Parameters:
+        df (pandas.DataFrame): The input DataFrame with a 'celo_address' column.
+
+    Returns:
+        pandas.DataFrame: A new DataFrame containing only the rows where 'celo_address' is missing.
+    """
+    # Create a new DataFrame with rows where 'celo_address' is missing
+    missing_celo_df = df[df['celo_address'].isnull()]
+
+    return missing_celo_df
+
+
+
 def handler(event: Dict[str, Any], context: Any) -> None:
     """
     Handler function for processing Tribu data.
@@ -322,6 +342,12 @@ def handler(event: Dict[str, Any], context: Any) -> None:
         df = fix_distance_by_max_per_hour(df, distance_fix["expected_max_per_hour"])
 
     df = add_celo_contract_address(df)
+
+    routes_missing_celo = get_missing_celo_addresses(df)
+    if not routes_missing_celo.empty:
+        devices_missing_celo = routes_missing_celo['k_dispositivo'].unique().tolist()
+        raise Exception("There are GPS devices not associated to a client in Airtable.\n    "
+                        f"* Plese fix and retry following list of devices: {', '.join(devices_missing_celo)}")
 
     logger.info("Preparing output data")
 

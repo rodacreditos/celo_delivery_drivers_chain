@@ -227,6 +227,25 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
 
 
 def add_celo_contract_address(df):
+    """
+    Adds a 'celo_address' column to the given DataFrame by mapping GPS IDs to Celo addresses.
+
+    This function reads a mapping of GPS IDs to Celo addresses from a YAML file stored in S3. 
+    It then adds a new column to the input DataFrame, where each row's 'celo_address' is determined 
+    by looking up the corresponding Celo address using the 'k_dispositivo' column as the key in the mapping.
+
+    Parameters:
+        df (pandas.DataFrame): A DataFrame containing at least one column named 'k_dispositivo' which holds the GPS IDs.
+
+    Returns:
+        pandas.DataFrame: The original DataFrame with an additional 'celo_address' column. Each row in this column 
+                          contains the Celo address mapped from the GPS ID found in 'k_dispositivo'.
+
+    Notes:
+        - The function assumes the presence of a YAML file in the S3 bucket, which contains the mapping of GPS IDs to Celo addresses.
+        - It logs the process of fetching the celo_address_map for monitoring and debugging purposes.
+        - The function will not modify other existing columns in the DataFrame.
+    """
     logger.info("Fetching celo_address_map...")
     gps_to_celo_address_map_path = os.path.join(RODAAPP_BUCKET_PREFIX, "roda_metadata", "gps_to_celo_address_map.yaml")
     celo_address_map = read_yaml_from_s3(gps_to_celo_address_map_path)

@@ -68,10 +68,6 @@ def generate_celo_address(celo_credentials, index=0):
     return bip44_addr_ctx.PublicKey().ToAddress()
 
 
-def update_celo_addresses(records_to_update):
-    pass
-
-
 def get_gps_to_celo_map():
     logger.info("Fetching Airtable credentials...")
     airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")

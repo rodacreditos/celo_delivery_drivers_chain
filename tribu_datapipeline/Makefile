@@ -1,10 +1,10 @@
 AWS_ACCOUNT_ID := $(shell aws sts get-caller-identity --query "Account" --output text)
 AWS_REGION := "us-east-2"
 
-build_sync:
+build_gps_to_celo_map_sync:
 	docker build -t rodaapp:gps_to_celo_map_sync -f ./Dockerfile_sync .
 
-run_sync:
+run_sync_gps_to_celo_map_sync:
 	docker run --rm \
 		-v ~/.aws:/root/.aws \
 		-v $(shell pwd):/var/task \
@@ -42,11 +42,18 @@ deploy_processing_docker_image: docker_login
 	docker tag rodaapp:tribu_processing $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_processing
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_processing
 
+deploy_gps_to_celo_map_sync_docker_image: docker_login
+	docker tag rodaapp:gps_to_celo_map_sync $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:gps_to_celo_map_sync
+	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:gps_to_celo_map_sync
+
 update_extraction_lambda_function:
 	aws lambda update-function-code --function-name extract_tribu_data --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction
 
 update_processing_lambda_function:
 	aws lambda update-function-code --function-name process_tribu_data --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_processing
+
+update_gps_to_celo_map_sync_lambda_function:
+	aws lambda update-function-code --function-name sync_gps_to_celo_map --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:gps_to_celo_map_sync
 
 backfill_extraction:
 ifndef DATASET_TYPE
@@ -76,4 +83,5 @@ endif
 
 deploy_extraction_lambda_function: build_extraction deploy_extraction_docker_image update_extraction_lambda_function
 deploy_processing_lambda_function: build_processing deploy_processing_docker_image update_processing_lambda_function
-deploy_lambda_functions: deploy_extraction_lambda_function deploy_processing_lambda_function
+deploy_gps_to_cel_map_sync_lambda_function: build_gps_to_celo_map_sync deploy_gps_to_celo_map_sync_docker_image update_gps_to_celo_map_sync_lambda_function
+deploy_lambda_functions: deploy_extraction_lambda_function deploy_processing_lambda_function deploy_gps_to_cel_map_sync_lambda_function

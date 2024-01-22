@@ -81,6 +81,13 @@ endif
 		--cli-binary-format raw-in-base64-out \
 		/dev/stdout
 
+backfill_gps_to_celo_map_synchronization:
+	aws lambda invoke \
+		--function-name sync_gps_to_celo_map \
+		--payload '{}' \
+		--cli-binary-format raw-in-base64-out \
+		/dev/stdout
+
 deploy_extraction_lambda_function: build_extraction deploy_extraction_docker_image update_extraction_lambda_function
 deploy_processing_lambda_function: build_processing deploy_processing_docker_image update_processing_lambda_function
 deploy_gps_to_celo_map_sync_lambda_function: build_gps_to_celo_map_sync deploy_gps_to_celo_map_sync_docker_image update_gps_to_celo_map_sync_lambda_function

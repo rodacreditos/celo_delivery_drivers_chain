@@ -291,6 +291,50 @@ def get_missing_celo_addresses(df):
     return missing_celo_df
 
 
+def filter_out_known_unassigned_devices(main_df: pd.DataFrame, known_unassigned_device_list: list) -> pd.DataFrame:
+    """
+    Filters out rows from a DataFrame where the 'k_dispositivo' value is in a provided list of known unassigned devices.
+
+    This function is used to remove rows from the DataFrame based on the criteria that the device identifiers ('k_dispositivo')
+    are known to be unassigned and are thus irrelevant for certain analyses or operations.
+
+    Parameters:
+        main_df (pd.DataFrame): The input DataFrame containing device data.
+        known_unassigned_device_list (list): A list of device identifiers that are known to be unassigned.
+
+    Returns:
+        pd.DataFrame: A DataFrame after excluding rows with 'k_dispositivo' present in the known unassigned device list.
+    """
+    # Exclude rows where 'k_dispositivo' is in the known unassigned device list
+    return main_df[~main_df['k_dispositivo'].isin(known_unassigned_device_list)]
+
+
+
+def get_known_unassigned_devices(routes_missing_celo: pd.DataFrame) -> list:
+    """
+    Fetches and filters a list of known unassigned devices that are currently missing a Celo address.
+
+    This function reads a list of known unassigned device identifiers from a YAML file stored in S3. It then filters
+    this list to include only those devices that are also present in the input DataFrame and are missing a Celo address.
+    This is to ensure that the list is up-to-date and reflects any recent assignments of devices to clients.
+
+    Parameters:
+        routes_missing_celo (pd.DataFrame): A DataFrame with device data, specifically missing Celo addresses.
+
+    Returns:
+        list: A list of device identifiers (from the known unassigned list) that are also missing a Celo address.
+    """
+    logger.info("Fetching known_unassigned_device_list...")
+    known_unassigned_device_list_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_metadata", "tribu_known_unassigned_divices.yaml")
+    known_unassigned_device_list = read_yaml_from_s3(known_unassigned_device_list_path)
+
+    # Filter the known unassigned device list to include only those devices that are also missing a Celo address
+    missing_celo_address_device_list = routes_missing_celo['k_dispositivo'].unique().tolist()
+    known_unassigned_device_list = [gps_id for gps_id in known_unassigned_device_list if gps_id in missing_celo_address_device_list]
+
+    return known_unassigned_device_list
+
+
 
 def handler(event: Dict[str, Any], context: Any) -> None:
     """
@@ -341,13 +385,31 @@ def handler(event: Dict[str, Any], context: Any) -> None:
         distance_fix = trans_params["distance_fix"]
         df = fix_distance_by_max_per_hour(df, distance_fix["expected_max_per_hour"])
 
+    # Add Celo contract addresses to the DataFrame
     df = add_celo_contract_address(df)
 
+    # Filter the DataFrame to get only routes that are missing a Celo address
     routes_missing_celo = get_missing_celo_addresses(df)
+
+    # Fetch a list of known unassigned devices that currently lack a Celo address
+    known_unassigned_devices_list = get_known_unassigned_devices(routes_missing_celo)
+
+    # Remove the known unassigned devices from the list of routes missing a Celo address
+    routes_missing_celo = filter_out_known_unassigned_devices(routes_missing_celo, known_unassigned_devices_list)
+
+    # Check if there are any remaining GPS devices without an associated client in Airtable
     if not routes_missing_celo.empty:
+        # Extract the list of devices still missing a Celo address
         devices_missing_celo = routes_missing_celo['k_dispositivo'].unique().tolist()
+        
+        # Raise an exception with a message listing these devices, prompting for a fix
         raise Exception("There are GPS devices not associated to a client in Airtable.\n    "
-                        f"* Plese fix and retry following list of devices: {', '.join(devices_missing_celo)}")
+                        f"* Please fix and retry following list of devices: {', '.join(devices_missing_celo)}")
+
+    # Final filter to remove routes associated with devices that are known to be unassigned and lack a Celo address
+    # This step ensures that the final dataset does not include routes without a valid Celo address
+    df = filter_out_known_unassigned_devices(df, known_unassigned_devices_list)
+
 
     logger.info("Preparing output data")
 

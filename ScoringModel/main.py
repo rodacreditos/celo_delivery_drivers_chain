@@ -5,7 +5,7 @@ from api_airtable import get_table_Airtable
 
 # Constantes
 
-personal_access_token = 'WRITE_YOUR_TOKEN_HERE'
+personal_access_token = 'WRITE_YOUR_TOKEN_ID'
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
 estados_deseados_credito = ["PAGADO", "EN PROCESO"]
 # Define los límites y puntajes para el cálculo de días de atraso promedio y acumulados

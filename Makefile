@@ -1,6 +1,12 @@
 deploy_tribu_datapipeline:
 	make -C tribu_datapipeline deploy_lambda_functions
 
+deploy_celo_smart_contract_staging:
+	make -C roda_celo_smart_contracts deploy_new_smart_contracts_staging
+
+deploy_celo_smart_contract_production:
+	make -C roda_celo_smart_contracts deploy_new_smart_contracts_production
+
 upload_guajira_transformation_parameters: transformations_guajira.yaml
 	aws s3 cp ./transformations_guajira.yaml s3://rodaapp-rappidriverchain/tribu_metadata/ 
 

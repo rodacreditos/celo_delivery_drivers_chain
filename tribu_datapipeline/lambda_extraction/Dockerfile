@@ -3,7 +3,7 @@ FROM public.ecr.aws/lambda/python:3.11
 
 # Copy function code and requirements file
 COPY tribu_datapipeline/lambda_extraction/lambda_extract_tribu_data.py ./ 
-COPY python_utilities/utils.py ./ 
+COPY python_utilities/utils.py ./python_utilities/ 
 COPY tribu_datapipeline/lambda_extraction/requirements.txt ./
 
 # Install the function's dependencies using file requirements.txt

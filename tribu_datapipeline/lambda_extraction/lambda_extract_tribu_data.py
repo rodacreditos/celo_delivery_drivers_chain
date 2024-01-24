@@ -44,7 +44,7 @@ import logging
 import os
 from datetime import datetime
 from typing import List, Dict
-from utils import dicts_to_csv, validate_date, read_json_from_s3, \
+from python_utilities.utils import dicts_to_csv, validate_date, read_json_from_s3, \
                     format_dashed_date, yesterday, logger, setup_local_logger, RODAAPP_BUCKET_PREFIX
 
 

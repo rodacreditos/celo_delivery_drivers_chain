@@ -39,7 +39,7 @@ import os
 from airtable import Airtable
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 from typing import Dict, Any
-from utils import read_yaml_from_s3, logger, dict_to_yaml_s3, \
+from python_utilities.utils import read_yaml_from_s3, logger, dict_to_yaml_s3, \
     				setup_local_logger, RODAAPP_BUCKET_PREFIX
 
 

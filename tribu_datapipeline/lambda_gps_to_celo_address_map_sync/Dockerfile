@@ -3,7 +3,7 @@ FROM public.ecr.aws/lambda/python:3.11
 
 # Copy function code and requirements file
 COPY tribu_datapipeline/lambda_gps_to_celo_address_map_sync/lambda_sync_gps_to_celo_address_map.py ./ 
-COPY python_utilities/utils.py ./ 
+COPY python_utilities/utils.py ./python_utilities/
 COPY tribu_datapipeline/lambda_gps_to_celo_address_map_sync/requirements.txt ./
 
 # Install gcc

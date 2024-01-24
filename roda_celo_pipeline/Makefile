@@ -7,7 +7,7 @@ docker_image_bash_console:
 		-v ${PWD}/credentials:/usr/src/app/credentials \
 		-ti --entrypoint bash rodaapp:smart_contracts
 
-deploy_new_smart_contracts_staging:
+deploy_new_smart_contracts_staging: build_dockerimage
 	aws s3 cp s3://rodaapp-rappidriverchain/credentials/roda_celo_credentials.yaml ./credentials/roda_celo_credentials.yaml
 	docker run --rm \
 		-v ~/.aws:/root/.aws \
@@ -19,7 +19,7 @@ deploy_new_smart_contracts_staging:
 	rm ./credentials/roda_celo_credentials.yaml
 	rm -f ./credentials/roda_celo_contracts.json
 
-deploy_new_smart_contracts_production:
+deploy_new_smart_contracts_production: build_dockerimage
 	aws s3 cp s3://rodaapp-rappidriverchain/credentials/roda_celo_credentials.yaml ./credentials/roda_celo_credentials.yaml
 	docker run --rm \
 		-v ~/.aws:/root/.aws \

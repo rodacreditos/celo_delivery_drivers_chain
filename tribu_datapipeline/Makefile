@@ -2,12 +2,11 @@ AWS_ACCOUNT_ID := $(shell aws sts get-caller-identity --query "Account" --output
 AWS_REGION := "us-east-2"
 
 build_gps_to_celo_map_sync:
-	docker build -t rodaapp:gps_to_celo_map_sync -f ./Dockerfile_sync .
+	docker build -t rodaapp:gps_to_celo_map_sync -f ./lambda_gps_to_celo_address_map_sync/Dockerfile ../
 
 run_sync_gps_to_celo_map_sync:
 	docker run --rm \
 		-v ~/.aws:/root/.aws \
-		-v $(shell pwd):/var/task \
 		-i --entrypoint python rodaapp:gps_to_celo_map_sync \
 		lambda_sync_gps_to_celo_address_map.py
 

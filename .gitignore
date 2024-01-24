@@ -215,3 +215,8 @@ $RECYCLE.BIN/
 *.msm
 *.msp
 *.lnk
+
+## roda_celo_pipeline specific rules
+roda_celo_pipeline/node_modules/
+stderr.txt
+stdout.txt

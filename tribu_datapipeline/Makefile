@@ -20,12 +20,11 @@ run_extraction:
 		lambda_extract_tribu_data.py --dataset-type roda
 
 build_processing:
-	docker build -t rodaapp:tribu_processing -f ./Dockerfile_processing .
+	docker build -t rodaapp:tribu_processing -f ./lambda_processing/Dockerfile ../
 
 run_processing:
 	docker run --rm \
 		-v ~/.aws:/root/.aws \
-		-v $(shell pwd):/var/task \
 		-i --entrypoint python rodaapp:tribu_processing \
 		lambda_process_tribu_data.py --dataset-type roda
 

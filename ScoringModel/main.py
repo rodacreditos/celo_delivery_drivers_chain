@@ -171,8 +171,8 @@ def obtener_datos(token):
     :param token: Token de acceso para la API de Airtable.
     :return: Dos DataFrames, uno para créditos y otro para contactos.
     """
-    DF_solicitud_credito = get_table_Airtable('Creditos', token)
-    DF_contactos = get_table_Airtable('Contactos', token)
+    DF_solicitud_credito = get_table_Airtable('Creditos', token, 'Scoring_View')
+    DF_contactos = get_table_Airtable('Contactos', token, 'Scoring_View')
     return DF_solicitud_credito, DF_contactos
 
 def transformar_datos(DF_contactos, DF_solicitud_credito):

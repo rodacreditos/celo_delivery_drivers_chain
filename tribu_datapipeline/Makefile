@@ -17,7 +17,6 @@ build_extraction:
 run_extraction:
 	docker run --rm \
 		-v ~/.aws:/root/.aws \
-		-v $(shell pwd):/var/task \
 		-i --entrypoint python rodaapp:tribu_extraction \
 		lambda_extract_tribu_data.py --dataset-type roda
 

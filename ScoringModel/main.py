@@ -5,7 +5,7 @@ from api_airtable import get_table_Airtable
 
 # Constantes
 
-personal_access_token = 'WRITE_YOUR_TOKEN_ID'
+personal_access_token = 'WRITE_YOUR_TOKEN_ID' # WRITE_YOUR_TOKEN_ID
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
 estados_deseados_credito = ["PAGADO", "EN PROCESO"]
 # Define los límites y puntajes para el cálculo de días de atraso promedio y acumulados
@@ -265,12 +265,55 @@ def run(token):
     DF_contactos = unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_solicitud_credito)
     return DF_contactos
 
+
+# Lambda handler
+
+def handler(event, context):
+    print("inicio procesamiento handler")
+    """
+    Handler function for AWS Lambda.
+
+    :param event: A dictionary containing event data (not used for now).
+    :param context: AWS Lambda context object (not used for now).
+    :return: A response dictionary with status and result.
+    """
+    try:
+        df_contactos_procesados = run(personal_access_token)
+        # Aquí puedes añadir código para manejar df_contactos_procesados, 
+        # como guardarlo en S3 o procesarlo de alguna manera.
+
+        # Por ahora, solo vamos a imprimir un mensaje.
+        print(f"Procesamiento completado con {len(df_contactos_procesados)} registros.")
+
+        return {
+            'statusCode': 200,
+            'body': 'Procesamiento completado exitosamente.'
+        }
+    except Exception as e:
+        print(f"Error durante el procesamiento: {e}")
+        return {
+            'statusCode': 500,
+            'body': 'Error durante el procesamiento.'
+        }
+    print("Procesamiento completado handler")
 # Script principal
 
 if __name__ == '__main__':
-    df_contactos_procesados = run(personal_access_token)
-    nombre_archivo = "DF_contactos.xlsx"
-    df_contactos_procesados.to_excel(nombre_archivo, index=False, engine='openpyxl')
-    print(f"Archivo guardado: {nombre_archivo}")
+    print("entró a main")
+    """
+    Main entry point for local script execution.
+    
+    Executes the script directly and simulates an AWS Lambda event.
+    """
+    # Simular un evento Lambda. Puedes modificar esto según tus necesidades.
+    fake_lambda_event = {
+        # Agrega aquí los datos que normalmente recibirías en un evento de Lambda
+    }
+    fake_lambda_context = None  # Context no es necesario para la ejecución local
+
+    # Ejecutar el handler como si estuviera en Lambda
+    response = handler(fake_lambda_event, fake_lambda_context)
+    print(response)
+
 
 

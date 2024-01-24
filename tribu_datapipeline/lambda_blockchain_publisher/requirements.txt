@@ -1,0 +1,3 @@
+boto3
+pyyaml
+web3py

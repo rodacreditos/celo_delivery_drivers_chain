@@ -12,7 +12,7 @@ run_sync_gps_to_celo_map_sync:
 		lambda_sync_gps_to_celo_address_map.py
 
 build_extraction:
-	docker build -t rodaapp:tribu_extraction -f ./Dockerfile_extraction .
+	docker build -t rodaapp:tribu_extraction -f ./lambda_extraction/Dockerfile ../
 
 run_extraction:
 	docker run --rm \

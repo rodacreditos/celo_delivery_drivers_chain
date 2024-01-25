@@ -35,7 +35,7 @@ resource "aws_lambda_function" "publish_to_blockchain" {
   function_name = "publish_to_blockchain"
 
   package_type = "Image"
-  image_uri    = "062988117074.dkr.ecr.us-east-2.amazonaws.com/rodaapp:publish_to_blockchain"
+  image_uri    = "062988117074.dkr.ecr.us-east-2.amazonaws.com/rodaapp:blockchain_publisher"
 
   role    = aws_iam_role.lambda_exec_role.arn
 

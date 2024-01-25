@@ -70,10 +70,20 @@ resource "aws_iam_policy" "lambda_s3_access" {
         Action = [
           "s3:GetObject",
           "s3:PutObject",
+          "s3:ListBucket", # Added action for listing bucket contents
         ],
         Effect = "Allow",
         Resource = [
           "arn:aws:s3:::rodaapp-rappidriverchain/*",
+        ],
+      },
+      {
+        Action = [
+          "s3:ListBucket",
+        ],
+        Effect = "Allow",
+        Resource = [
+          "arn:aws:s3:::rodaapp-rappidriverchain", # Bucket ARN without the '/*' for ListBucket
         ],
       },
     ],

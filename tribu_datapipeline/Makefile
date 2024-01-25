@@ -52,6 +52,10 @@ deploy_gps_to_celo_map_sync_docker_image: docker_login
 	docker tag rodaapp:gps_to_celo_map_sync $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:gps_to_celo_map_sync
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:gps_to_celo_map_sync
 
+deploy_blockchain_publisher_docker_image: docker_login
+	docker tag rodaapp:blockchain_publisher $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:blockchain_publisher
+	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:blockchain_publisher
+
 update_extraction_lambda_function:
 	aws lambda update-function-code --function-name extract_tribu_data --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:tribu_extraction
 
@@ -60,6 +64,9 @@ update_processing_lambda_function:
 
 update_gps_to_celo_map_sync_lambda_function:
 	aws lambda update-function-code --function-name sync_gps_to_celo_map --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:gps_to_celo_map_sync
+
+update_blockchain_publisher_lambda_function:
+	aws lambda update-function-code --function-name publish_to_blockchain --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:blockchain_publisher
 
 backfill_extraction:
 ifndef DATASET_TYPE
@@ -94,7 +101,21 @@ backfill_gps_to_celo_map_synchronization:
 		--cli-binary-format raw-in-base64-out \
 		/dev/stdout
 
+backfill_publish_to_blockchain:
+ifndef ENVIRONMENT
+	$(error ENVIRONMENT is not set)
+endif
+ifndef DATE
+	$(error DATE is not set)
+endif
+	aws lambda invoke \
+		--function-name publish_to_blockchain \
+		--payload '{"environment":"$(ENVIRONMENT)", "processing_date":"$(DATE)"}' \
+		--cli-binary-format raw-in-base64-out \
+		/dev/stdout
+
 deploy_extraction_lambda_function: build_extraction deploy_extraction_docker_image update_extraction_lambda_function
 deploy_processing_lambda_function: build_processing deploy_processing_docker_image update_processing_lambda_function
 deploy_gps_to_celo_map_sync_lambda_function: build_gps_to_celo_map_sync deploy_gps_to_celo_map_sync_docker_image update_gps_to_celo_map_sync_lambda_function
-deploy_lambda_functions: deploy_extraction_lambda_function deploy_processing_lambda_function deploy_gps_to_celo_map_sync_lambda_function
+deploy_publish_to_blockchain_lambda_function: build_blockchain_publisher deploy_blockchain_publisher_docker_image update_blockchain_publisher_lambda_function
+deploy_lambda_functions: deploy_extraction_lambda_function deploy_processing_lambda_function deploy_gps_to_celo_map_sync_lambda_function deploy_publish_to_blockchain_lambda_function

@@ -136,6 +136,22 @@ def read_yaml_from_s3(s3_path: str) -> dict:
     return yaml.safe_load(StringIO(read_from_s3(s3_path)))
 
 
+def read_csv_from_s3(s3_path: str) -> list:
+    """
+    Read a CSV file with a header from an S3 bucket and return its content.
+
+    This function assumes that the first row of the CSV file contains headers.
+    Each row of the CSV file is converted into a dictionary where the keys are the headers.
+
+    :param s3_path: The S3 path (e.g., 's3://bucket_name/key') to the CSV file.
+    :return: A list of dictionaries, each representing a row in the CSV file.
+    """
+    csv_content = read_from_s3(s3_path)
+    csv_reader = csv.DictReader(StringIO(csv_content))
+
+    return [row for row in csv_reader]
+
+
 def dict_to_yaml_s3(data_dict, s3_path):
     with StringIO() as yaml_buffer:
         yaml.dump(data_dict, yaml_buffer)
@@ -165,6 +181,12 @@ def dicts_to_csv(dict_list: list, filepath: str) -> None:
         dicts_to_csv_s3(dict_list, filepath)
     else:
         dicts_to_csv_local(dict_list, filepath)
+
+
+def list_s3_files(s3_path: str):
+    bucket, prefix = split_s3(s3_path)
+    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+    return [item['Key'] for item in response.get('Contents', [])]
 
 
 def validate_date(date_str: str) -> datetime:

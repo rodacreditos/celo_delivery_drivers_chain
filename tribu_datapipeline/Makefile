@@ -35,7 +35,7 @@ run_blockchain_publisher:
 	docker run --rm \
 		-v ~/.aws:/root/.aws \
 		-i --entrypoint python rodaapp:blockchain_publisher \
-		lambda_blockchain_publish.py --environment staging --date 2023-12-25
+		lambda_blockchain_publish.py --environment staging --date 2023-12-24
 
 docker_login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com

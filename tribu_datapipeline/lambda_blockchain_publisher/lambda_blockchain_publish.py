@@ -78,46 +78,49 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
     
     # Iterate over the data and publish each row to Celo
     for route in data:
-        logger.info(f"Publishing route id: {route['routeID']}")
+        try:
+            logger.info(f"Publishing route id: {route['routeID']}")
 
-        route_id = route['routeID']
-        timestamp_start = route['timestampStart']
-        timestamp_end = route['timestampEnd']
-        measured_distance = route['measuredDistance']
-        celo_address = route['celo_address']
+            route_id = route['routeID']
+            timestamp_start = route['timestampStart']
+            timestamp_end = route['timestampEnd']
+            measured_distance = route['measuredDistance']
+            celo_address = route['celo_address']
 
-        # Estimate gas for the transaction
-        estimated_gas = contract.functions.recordRoute(
-                            to=celo_address,
-                            routeId=int(route_id),
-                            _timestampStart=int(timestamp_start),
-                            _timestampEnd=int(timestamp_end),
-                            _distance=int(measured_distance)
-                        ).estimate_gas({'from': account.address})
+            # Estimate gas for the transaction
+            estimated_gas = contract.functions.recordRoute(
+                                to=celo_address,
+                                routeId=int(route_id),
+                                _timestampStart=int(timestamp_start),
+                                _timestampEnd=int(timestamp_end),
+                                _distance=int(measured_distance)
+                            ).estimate_gas({'from': account.address})
 
-        tx = contract.functions.recordRoute(
-            to=celo_address,
-            routeId=int(route_id),
-            _timestampStart=int(timestamp_start),
-            _timestampEnd=int(timestamp_end),
-            _distance=int(measured_distance)
-        ).build_transaction({
-            'from': account.address,
-            'nonce': nonce,
-            'gas': estimated_gas + 100000,  # extra margin for gas
-            'gasPrice': web3.eth.gas_price
-        })
+            tx = contract.functions.recordRoute(
+                to=celo_address,
+                routeId=int(route_id),
+                _timestampStart=int(timestamp_start),
+                _timestampEnd=int(timestamp_end),
+                _distance=int(measured_distance)
+            ).build_transaction({
+                'from': account.address,
+                'nonce': nonce,
+                'gas': estimated_gas + 100000,  # extra margin for gas
+                'gasPrice': web3.eth.gas_price
+            })
 
-        # Sign the transaction
-        signed_tx = account.sign_transaction(tx)
+            # Sign the transaction
+            signed_tx = account.sign_transaction(tx)
 
-        # Send the transaction
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        logger.info(f"    -> Transaction successfully sent, hash: {tx_hash.hex()}")
+            # Send the transaction
+            tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            logger.info(f"    -> Transaction successfully sent, hash: {tx_hash.hex()}")
 
-        # Increment the nonce for subsequent transactions
-        nonce += 1
+            # Increment the nonce for subsequent transactions
+            nonce += 1
 
+        except Exception as e:
+            logger.error(f"    -> Error publishing route id {route['routeID']}: {e}")
 
 def handler(event: Dict[str, Any], context: Any) -> None:
     """

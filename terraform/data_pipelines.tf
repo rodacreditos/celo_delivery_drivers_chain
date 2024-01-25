@@ -78,7 +78,6 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
       "Parameters": {
         "environment": "staging"
       },
-      "Result": "Workflow completed",
       "End": true
     }
   }

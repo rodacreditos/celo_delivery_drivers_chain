@@ -25,7 +25,7 @@ cd ScoringModel
 ### Build the Docker Image
 
 ```sh
-docker build -t my_repo_scoring .
+docker build -t roda_scoring_builder .
 ```
 
 ### Run Locally

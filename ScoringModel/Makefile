@@ -1,12 +1,12 @@
 .PHONY: build run login-ecr push-ecr
 
 # Nombre de la imagen Docker
-IMAGE_NAME := mi_repo_scoring
+IMAGE_NAME := roda_scoring_builder
 
 # Datos para ECR
-AWS_ACCOUNT_ID := 590184097248
+AWS_ACCOUNT_ID := $(shell aws sts get-caller-identity --query "Account" --output text)
 AWS_REGION := us-east-1
-REPO_NAME := mi_repo_scoring
+REPO_NAME := rodaapp
 
 # Construye la imagen
 build:
@@ -21,5 +21,5 @@ login-ecr:
 
 # Etiqueta y sube la imagen en Amazon ECR
 push-ecr:
-	docker tag $(IMAGE_NAME) $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(REPO_NAME):latest
+	docker tag $(IMAGE_NAME) $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(REPO_NAME):$(IMAGE_NAME)
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(REPO_NAME):latest

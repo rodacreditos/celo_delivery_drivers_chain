@@ -5,7 +5,7 @@ IMAGE_NAME := roda_scoring_builder
 
 # Datos para ECR
 AWS_ACCOUNT_ID := $(shell aws sts get-caller-identity --query "Account" --output text)
-AWS_REGION := us-east-1
+AWS_REGION := us-east-2
 REPO_NAME := rodaapp
 
 # Construye la imagen
@@ -22,4 +22,4 @@ login-ecr:
 # Etiqueta y sube la imagen en Amazon ECR
 push-ecr:
 	docker tag $(IMAGE_NAME) $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(REPO_NAME):$(IMAGE_NAME)
-	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(REPO_NAME):latest
+	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(REPO_NAME):$(IMAGE_NAME)

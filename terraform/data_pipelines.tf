@@ -26,7 +26,7 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
     },
     "ParallelProcessing": {
       "Type": "Parallel",
-      "Next": "FinalState",
+      "Next": "RodaBlockchainPublisher",
       "Branches": [
         {
           "StartAt": "GuajiraExtraction",
@@ -72,8 +72,12 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
         }
       ]
     },
-    "FinalState": {
-      "Type": "Pass",
+    "RodaBlockchainPublisher": {
+      "Type": "Task",
+      "Resource": "${aws_lambda_function.publish_to_blockchain.arn}",
+      "Parameters": {
+        "environment": "staging"
+      },
       "Result": "Workflow completed",
       "End": true
     }
@@ -114,7 +118,8 @@ resource "aws_iam_role_policy" "sfn_policy" {
         Resource = [
           aws_lambda_function.gps_to_celo_map_sync.arn,
           aws_lambda_function.tribu_extraction.arn,
-          aws_lambda_function.tribu_processing.arn
+          aws_lambda_function.tribu_processing.arn,
+          aws_lambda_function.publish_to_blockchain.arn
         ]
       }
     ]

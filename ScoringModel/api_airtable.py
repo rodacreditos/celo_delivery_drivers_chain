@@ -2,7 +2,7 @@ from airtable import Airtable
 import pandas as pd
 import numpy as np
 
-def get_table_Airtable(table_name1, personal_access_token,view_name=None):
+def get_table_Airtable(table_name1, personal_access_token,base_key, view_name=None):
 
     """
     Gets data from a specific Airtable table, optionally through a custom view.
@@ -17,7 +17,6 @@ def get_table_Airtable(table_name1, personal_access_token,view_name=None):
     all records in the table are returned.
     """
 
-    base_key = 'appL6Qzg4ivN62g2e'  # Tu Base ID  WRITE_YOUR_BASE_ID
     table_name = table_name1  # Nombre de tu tabla
     api_key = personal_access_token  # Tu Personal Access Token
 

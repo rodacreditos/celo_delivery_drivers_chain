@@ -1,11 +1,18 @@
 import pandas as pd
 import numpy as np
+import os
 
 from api_airtable import get_table_Airtable
-
+from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
 # Constantes
 
-personal_access_token = 'patLJSYJ6ohmP3uZ9.a2ced0b4e7bfc72cc45f3a0df6d3b1b22dea317c1c8ca2c8955c262a9fc118e1' # WRITE_YOUR_TOKEN_ID
+
+airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
+airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
+
+base_key = airtable_credentials['BASE_ID']
+personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
+
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
 estados_deseados_credito = ["PAGADO", "EN PROCESO"]
 # Define los límites y puntajes para el cálculo de días de atraso promedio y acumulados
@@ -23,6 +30,10 @@ W4=0.8
 nombre_archivo = "DF_contactos.xlsx"
 
 # Functions
+
+
+
+
 
 def replace_dict_with_empty(value):
     """
@@ -168,8 +179,8 @@ def obtener_datos(token):
     :return: Two DataFrames, one for credits and one for contacts.
 
     """
-    DF_solicitud_credito = get_table_Airtable('Creditos', token, 'Scoring_View')
-    DF_contactos = get_table_Airtable('Contactos', token, 'Scoring_View')
+    DF_solicitud_credito = get_table_Airtable('Creditos', token, 'Scoring_View', base_key)
+    DF_contactos = get_table_Airtable('Contactos', token, 'Scoring_View',base_key)
     return DF_solicitud_credito, DF_contactos
 
 def transformar_datos(DF_contactos, DF_solicitud_credito):

@@ -10,7 +10,7 @@ REPO_NAME := rodaapp
 
 # Construye la imagen
 build:
-	docker build -t $(IMAGE_NAME) .
+	docker build -t $(REPO_NAME):$(IMAGE_NAME) -f ./Dockerfile ../
 
 run:
 	docker run --rm -p 8080:8080 $(IMAGE_NAME)

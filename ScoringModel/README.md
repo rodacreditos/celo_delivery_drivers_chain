@@ -1,15 +1,55 @@
-# scoringmodel
+# Scoring Model
 
+Brief Description: This project is a scoring model implemented as an AWS Lambda function. It processes data from Airtable, calculates scores based on predefined criteria, and returns the results.
 
-# Step by step for execution
+## Features
+- Processes data from Airtable.
+- Calculates scores using predefined criteria.
+- Implemented as an AWS Lambda function within a Docker container.
+
+## Prerequisites
+
+- Docker installed on your local machine.
+- AWS CLI configured with appropriate credentials.
+- Access to Amazon ECR and AWS Lambda.
+
+## Installation and Setup
+
+### Clone the Repository
 
 ```sh
-python3 -m venv env
-source env/bin/activate
-pip install -r requirements.txt
-python3 main.py
+git clone [repository URL]
+cd ScoringModel
+```
+
+### Build the Docker Image
+
+```sh
+docker build -t roda_scoring_builder .
+```
+
+### Run Locally
+To test the Lambda function locally in a Docker container:
+
+
+```sh
+make run
+```
+
+In another terminal, invoke the function:
+
+```sh
+curl -XPOST "http://localhost:8080/2015-03-31/functions/function/invocations" -d '{}'
 
 ```
-**If you got the message "Archivo guardado: DF_contactos.xlsx" script was succesfully executed**
 
-Currently, the script gives you an Excel document with the dataframe hole, and in the last column for each record score was written
+### Upload the Image to Amazon ECR
+
+```sh
+make login-ecr
+make push-ecr
+```
+
+### Usage in AWS Lambda
+
+Once the image is uploaded to ECR, you can configure an AWS Lambda function to use this image. Ensure you assign appropriate permissions to the Lambda function to interact with other AWS services if necessary.

@@ -31,6 +31,17 @@ resource "aws_lambda_function" "gps_to_celo_map_sync" {
   timeout = 600  # Timeout in seconds (current value is 10 minutes)
 }
 
+resource "aws_lambda_function" "publish_to_blockchain" {
+  function_name = "publish_to_blockchain"
+
+  package_type = "Image"
+  image_uri    = "062988117074.dkr.ecr.us-east-2.amazonaws.com/rodaapp:blockchain_publisher"
+
+  role    = aws_iam_role.lambda_exec_role.arn
+
+  timeout = 600  # Timeout in seconds (current value is 10 minutes)
+}
+
 resource "aws_iam_role" "lambda_exec_role" {
   name = "lambda_exec_role"
 
@@ -59,10 +70,20 @@ resource "aws_iam_policy" "lambda_s3_access" {
         Action = [
           "s3:GetObject",
           "s3:PutObject",
+          "s3:ListBucket", # Added action for listing bucket contents
         ],
         Effect = "Allow",
         Resource = [
           "arn:aws:s3:::rodaapp-rappidriverchain/*",
+        ],
+      },
+      {
+        Action = [
+          "s3:ListBucket",
+        ],
+        Effect = "Allow",
+        Resource = [
+          "arn:aws:s3:::rodaapp-rappidriverchain", # Bucket ARN without the '/*' for ListBucket
         ],
       },
     ],

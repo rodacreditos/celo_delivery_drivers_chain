@@ -94,14 +94,14 @@ def get_gps_to_celo_map():
     airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
 
     base_id = airtable_credentials['BASE_ID']
-    celo_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
+    personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
 
     logger.info("Fetching Celo credentials...")
     s3_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_celo_credentials.yaml")
     celo_credentials = read_yaml_from_s3(s3_path)
 
     # Initialize Airtable client for creditos and contactos table
-    contactos_table = Airtable(base_id, 'Contactos', celo_access_token)
+    contactos_table = Airtable(base_id, 'Contactos', personal_access_token)
 
     logger.info("Fetching contactos from airtable that has at least one GPS ID associated (view TRIBU_PIPELINE_VIEW)...")
     contactos_records = contactos_table.get_all(view='TRIBU_PIPELINE_VIEW', fields=['ID CLIENTE', 'GPS ID List', 'Celo Address'])

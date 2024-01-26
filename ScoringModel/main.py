@@ -1,11 +1,18 @@
 import pandas as pd
 import numpy as np
+import os
 
 from api_airtable import get_table_Airtable
-
+from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
 # Constantes
 
-personal_access_token = 'WRITE_YOUR_TOKEN_HERE'
+
+airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
+airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
+
+base_key = airtable_credentials['BASE_ID']
+personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
+
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
 estados_deseados_credito = ["PAGADO", "EN PROCESO"]
 # Define los límites y puntajes para el cálculo de días de atraso promedio y acumulados
@@ -24,12 +31,16 @@ nombre_archivo = "DF_contactos.xlsx"
 
 # Functions
 
+
+
+
+
 def replace_dict_with_empty(value):
     """
-    Reemplaza diccionarios con un valor especial por un string vacío.
+    Replaces dictionaries with a special value with an empty string.
     
-    :param value: Valor a ser revisado y posiblemente reemplazado.
-    :return: Un string vacío si el valor es un diccionario con 'specialValue', de lo contrario, el valor original.
+    :param value: Value to be reviewed and possibly replaced.
+    :return: An empty string if the value is a dictionary with 'specialValue', otherwise the original value.
     """
     if isinstance(value, dict) and 'specialValue' in value:
         return ''
@@ -39,12 +50,12 @@ def replace_dict_with_empty(value):
 
 def asignar_puntajes_por_cuartiles(df, columna):
     """
-    Asigna puntajes a los valores de una columna de un DataFrame basándose en los cuartiles.
+    Assigns scores to the values in a column of a DataFrame based on quartiles.
     
-    :param df: DataFrame que contiene la columna a analizar.
-    :param columna: Nombre de la columna a la que se le asignarán los puntajes.
+    :param df: DataFrame containing the column to be analyzed.
+    :param columna: Name of the column to which the scores will be assigned.
     
-    :return: DataFrame con una nueva columna que contiene los puntajes asignados.
+    :return: DataFrame with a new column containing the assigned scores.
     """
     # Calcular cuartiles de la columna
     Q1 = df[columna].quantile(0.25)
@@ -69,17 +80,17 @@ def asignar_puntajes_por_cuartiles(df, columna):
 
 def asignar_puntajes_personalizados(df, columna, limites, puntajes):
     """
-    Asigna puntajes personalizados a una columna de un DataFrame basándose en rangos definidos por el usuario.
+    Assigns custom scores to a column of a DataFrame based on user-defined ranges.
 
-    :param df: DataFrame que contiene la columna a analizar.
-    :param columna: Nombre de la columna a la que se le asignarán los puntajes.
-    :param limites: Lista de límites para definir los rangos.
-    :param puntajes: Lista de puntajes a asignar para cada rango.
+    :param df: DataFrame containing the column to be analyzed.
+    :param columna: Name of the column to which the scores will be assigned.
+    :param limites: List of limits to define the ranges.
+    :param puntajes: List of scores to be assigned for each rank.
 
-    :return: DataFrame con una nueva columna que contiene los puntajes asignados.
+    :return: DataFrame with a new column containing the assigned scores.
     """
     if len(limites) != len(puntajes) + 1:
-        raise ValueError("La lista de limites debe tener exactamente un elemento más que la lista de puntajes.")
+        raise ValueError("The list of limits must have exactly one more element than the list of scores.")
 
     # Función para asignar puntajes basada en los rangos definidos por el usuario
     def asignar_puntaje(valor):
@@ -94,11 +105,10 @@ def asignar_puntajes_personalizados(df, columna, limites, puntajes):
 
 def ponderar_puntajes(puntajes):
     """
-    Pondera una lista de puntajes de manera que los puntajes más recientes (hacia el final de la lista)
-    tienen un mayor peso, y el peso disminuye linealmente hacia los primeros puntajes.
-
-    :param puntajes: Lista de puntajes a ponderar.
-    :return: Puntaje ponderado total.
+    Weights a list of scores so that the most recent scores (toward the end of the list) have the greatest weight, 
+    and the weight decreases linearly toward the earlier scores. 
+    :param puntajes: List of scores to be weighted.
+    :return: Total weighted score.
     """
     n = len(puntajes)
     
@@ -127,16 +137,16 @@ def ponderar_puntajes(puntajes):
 
 def calcular_score(puntaje_inicial, W1, W2, lambda_val, beta, puntajes_credito):
     """
-    Calcula el score basado en la fórmula proporcionada.
+    Calculate the score based on the formula provided.
     
-    :param puntaje_inicial: El puntaje inicial.
-    :param W1: Peso para el puntaje inicial.
-    :param W2: Peso para la suma de los puntajes de crédito.
-    :param lambda_val: Valor lambda en la fórmula.
-    :param beta: Valor beta en la fórmula.
-    :param puntajes_credito: Lista de puntajes de crédito.
+    :param puntaje_inicial: Initial score.
+    :param W1: Weight for initial score.
+    :param W2: Weight for the sum of credit scores
+    :param lambda_val: Lambda value in the formula.
+    :param beta: Beta value in the formula.
+    :param puntajes_credito: List of credit scores
     
-    :return: El score calculado.
+    :return: Calculated score.
     """
     
     
@@ -147,13 +157,10 @@ def calcular_score(puntaje_inicial, W1, W2, lambda_val, beta, puntajes_credito):
 # Paso 4: Modificar la función aplicar_calculo
 def aplicar_calculo(row):
     """
-    Aplica un cálculo específico a una fila del DataFrame.
-
-    Esta función se utiliza principalmente con el método `apply` de pandas para 
-    aplicar un cálculo a cada fila de un DataFrame.
-
-    :param row: La fila del DataFrame a la que se le aplicará el cálculo.
-    :return: Resultado del cálculo aplicado a la fila.
+    Applies a specific calculation to a DataFrame row.
+    This function is mainly used with the `apply` method of pandas to apply a calculation to each row of a Dataframe
+    :param row: The DataFrame row to which the calculation will be applied.
+    :return: Result of the calculation applied to the row.
     """
 
     if row['Tiene Credito Perdido']:
@@ -166,24 +173,24 @@ def aplicar_calculo(row):
 def obtener_datos(token):
 
     """
-    Obtiene datos de Airtable para dos tablas específicas: 'Creditos' y 'Contactos'.
+    Gets data from Airtable for two specific tables: 'Credits' and 'Contacts'.
 
-    :param token: Token de acceso para la API de Airtable.
-    :return: Dos DataFrames, uno para créditos y otro para contactos.
+    :param token: Access token for the Airtable API.
+    :return: Two DataFrames, one for credits and one for contacts.
+
     """
-    DF_solicitud_credito = get_table_Airtable('Creditos', token)
-    DF_contactos = get_table_Airtable('Contactos', token)
+    DF_solicitud_credito = get_table_Airtable('Creditos', token, 'Scoring_View', base_key)
+    DF_contactos = get_table_Airtable('Contactos', token, 'Scoring_View',base_key)
     return DF_solicitud_credito, DF_contactos
 
 def transformar_datos(DF_contactos, DF_solicitud_credito):
     """
-    Realiza la limpieza y transformación de los DataFrames obtenidos.
+    Performs the cleaning and transformation of the obtained DataFrames.
+    Convert data types where necessary and filter data according to certain criteria.
 
-    Convierte los tipos de datos donde sea necesario y filtra los datos según ciertos criterios.
-
-    :param DF_contactos: DataFrame de contactos.
+    :param DF_contactos: Contacts DataFrame.
     :param DF_solicitud_credito: DataFrame de solicitudes de crédito.
-    :return: Los DataFrames transformados.
+    :return: Transformed DataFrames.
     """
 
     # Conversión de tipos de datos y limpieza
@@ -205,11 +212,11 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
 def calcular_puntajes(DF_contactos, DF_solicitud_credito):
 
     """
-    Calcula y asigna puntajes en los DataFrames según criterios predefinidos.
+    Calculates and assigns scores in DataFrames according to predefined criteria.
 
-    :param DF_contactos: DataFrame de contactos.
+    :param DF_contactos: Contacts DataFrame.
     :param DF_solicitud_credito: DataFrame de solicitudes de crédito.
-    :return: DataFrame de contactos con puntajes calculados y un DataFrame auxiliar con puntajes ponderados.
+    :return: Contact DataFrame with calculated scores and an auxiliary DataFrame with weighted scores
     """
 
     # Asignación de puntajes
@@ -232,12 +239,12 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito):
 
 def unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_solicitud_credito):
     """
-    Combina los DataFrames y calcula el score final para cada contacto.
+    Combine the DataFrames and calculate the final score for each contact.
 
-    :param DF_contactos: DataFrame de contactos.
-    :param puntajes_ponderados_df: DataFrame con puntajes ponderados.
+    :param DF_contactos: Contacts DataFrame.
+    :param puntajes_ponderados_df: DataFrame with weighted scores.
     :param DF_solicitud_credito: DataFrame de solicitudes de crédito.
-    :return: DataFrame de contactos con el score calculado.
+    :return: Contacts DataFrame with the calculated score.
     """
 
     # Unir DF_contactos con los puntajes ponderados
@@ -265,12 +272,60 @@ def run(token):
     DF_contactos = unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_solicitud_credito)
     return DF_contactos
 
+
+# Lambda handler
+
+def handler(event, context):
+
+    """
+    Handler function for AWS Lambda.
+
+    :param event: A dictionary containing event data (not used for now).
+    :param context: AWS Lambda context object (not used for now).
+    :return: A response dictionary with status and result.
+    """
+
+    print("inicio procesamiento handler")
+
+    try:
+        df_contactos_procesados = run(personal_access_token)
+        # Aquí puedes añadir código para manejar df_contactos_procesados, 
+        # como guardarlo en S3 o procesarlo de alguna manera.
+
+        # Por ahora, solo vamos a imprimir un mensaje.
+        print(f"Procesamiento completado con {len(df_contactos_procesados)} registros.")
+
+        return {
+            'statusCode': 200,
+            'body': 'Procesamiento completado exitosamente.'
+        }
+    except Exception as e:
+        print(f"Error durante el procesamiento: {e}")
+        return {
+            'statusCode': 500,
+            'body': 'Error durante el procesamiento.'
+        }
+    print("Procesamiento completado handler")
 # Script principal
 
 if __name__ == '__main__':
-    df_contactos_procesados = run(personal_access_token)
-    nombre_archivo = "DF_contactos.xlsx"
-    df_contactos_procesados.to_excel(nombre_archivo, index=False, engine='openpyxl')
-    print(f"Archivo guardado: {nombre_archivo}")
+
+    """
+    Main entry point for local script execution.
+    
+    Executes the script directly and simulates an AWS Lambda event.
+    """
+    print("entró a main")
+
+    # Simular un evento Lambda. Puedes modificar esto según tus necesidades.
+    fake_lambda_event = {
+        # Agrega aquí los datos que normalmente recibirías en un evento de Lambda
+    }
+    fake_lambda_context = None  # Context no es necesario para la ejecución local
+
+    # Ejecutar el handler como si estuviera en Lambda
+    response = handler(fake_lambda_event, fake_lambda_context)
+    print(response)
+
 
 

@@ -1,3 +1,13 @@
+resource "aws_cloudwatch_event_rule" "scoring_model_schedule" {
+  name                = "scoring-model-daily-11pm"
+  schedule_expression = "cron(0 6 * * ? *)"  # Todos los días a las 6AM UTC
+}
+
+resource "aws_cloudwatch_event_target" "scoring_model_target" {
+  rule = aws_cloudwatch_event_rule.scoring_model_schedule.name
+  arn  = aws_lambda_function.scoring_model.arn
+}
+
 resource "aws_cloudwatch_event_rule" "daily_trigger" {
   name                = "daily-trigger-at-6-am"
   schedule_expression = "cron(0 6 * * ? *)"
@@ -153,6 +163,11 @@ resource "aws_iam_policy" "cloudwatch_sfn_policy" {
         Action = "states:StartExecution",
         Effect = "Allow",
         Resource = aws_sfn_state_machine.tribu_state_machine.arn
+      },
+      {
+        Action = "lambda:InvokeFunction",
+        Effect = "Allow",
+        Resource = aws_lambda_function.scoring_model.arn  # Allow scoring lambda function
       }
     ]
   })

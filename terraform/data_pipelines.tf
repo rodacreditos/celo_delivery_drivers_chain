@@ -1,11 +1,12 @@
 resource "aws_cloudwatch_event_rule" "scoring_model_schedule" {
-  name                = "scoring-model-daily-11pm"
-  schedule_expression = "cron(0 6 * * ? *)"  # Todos los días a las 6AM UTC
+  name                = "scoring-model-daily"
+  schedule_expression = "cron(0 6 * * ? *)"  # Todos los días a las 6AM UTC 1AM Col
 }
 
 resource "aws_cloudwatch_event_target" "scoring_model_target" {
   rule = aws_cloudwatch_event_rule.scoring_model_schedule.name
   arn  = aws_lambda_function.scoring_model.arn
+  role_arn = aws_iam_role.cloudwatch_role.arn
 }
 
 resource "aws_cloudwatch_event_rule" "daily_trigger" {

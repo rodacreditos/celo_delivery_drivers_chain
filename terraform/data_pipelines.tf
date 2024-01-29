@@ -153,6 +153,11 @@ resource "aws_iam_policy" "cloudwatch_sfn_policy" {
         Action = "states:StartExecution",
         Effect = "Allow",
         Resource = aws_sfn_state_machine.tribu_state_machine.arn
+      },
+      {
+        Action = "lambda:InvokeFunction",
+        Effect = "Allow",
+        Resource = aws_lambda_function.scoring_model.arn  # Allow scoring lambda function
       }
     ]
   })

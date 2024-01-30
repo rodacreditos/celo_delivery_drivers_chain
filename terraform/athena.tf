@@ -28,23 +28,33 @@ resource "aws_glue_catalog_table" "rappi_driver_routes" {
     }
 
     columns {
+      name = "routeid"
+      type = "integer"
+    }
+
+    columns {
       name = "gpsid"
       type = "string"
     }
 
     columns {
       name = "timestampstart"
-      type = "timestamp"
+      type = "bigint"
     }
 
     columns {
       name = "timestampend"
-      type = "timestamp"
+      type = "bigint"
     }
 
     columns {
       name = "measureddistance"
-      type = "float"
+      type = "integer"
+    }
+
+    columns {
+      name = "celo_address"
+      type = "string"
     }
   }
 

@@ -29,7 +29,7 @@ resource "aws_glue_catalog_table" "rappi_driver_routes" {
 
     columns {
       name = "routeid"
-      type = "integer"
+      type = "int"
     }
 
     columns {
@@ -49,7 +49,7 @@ resource "aws_glue_catalog_table" "rappi_driver_routes" {
 
     columns {
       name = "measureddistance"
-      type = "integer"
+      type = "int"
     }
 
     columns {

@@ -154,3 +154,8 @@ endif
 			"replacement transaction underpriced: ", underpriced[d]+0\
 		}' | sort -n 
 
+count_blockchain_routes_staging:
+	docker run --rm \
+		-v ~/.aws:/root/.aws \
+		-i --entrypoint python rodaapp:blockchain_publisher \
+		query_blockchain_routes.py

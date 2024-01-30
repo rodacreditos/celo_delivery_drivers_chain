@@ -119,3 +119,43 @@ deploy_processing_lambda_function: build_processing deploy_processing_docker_ima
 deploy_gps_to_celo_map_sync_lambda_function: build_gps_to_celo_map_sync deploy_gps_to_celo_map_sync_docker_image update_gps_to_celo_map_sync_lambda_function
 deploy_blockchain_publisher_lambda_function: build_blockchain_publisher deploy_blockchain_publisher_docker_image update_blockchain_publisher_lambda_function
 deploy_lambda_functions: deploy_extraction_lambda_function deploy_processing_lambda_function deploy_gps_to_celo_map_sync_lambda_function deploy_blockchain_publisher_lambda_function
+
+build_stats_from_blockchain_publisher_logs:
+ifndef START_TIMESTAMP
+	$(error START_TIMESTAMP is not set)
+endif
+ifndef END_TIMESTAMP
+	$(error END_TIMESTAMP is not set)
+endif
+	@$(eval START_TIMESTAMP_MS=$(shell date -d "$(START_TIMESTAMP)" +%s%3N))
+	@$(eval END_TIMESTAMP_MS=$(shell date -d "$(END_TIMESTAMP)" +%s%3N))
+	@aws logs filter-log-events \
+		--log-group-name /aws/lambda/publish_to_blockchain \
+		--start-time $(START_TIMESTAMP_MS) \
+		--end-time $(END_TIMESTAMP_MS) | \
+	cut -d\| -f6 | \
+	awk '/Parameters:/ { date=$$9 } \
+		/Transaction successfully sent/ { success[date]++ } \
+		/Publishing route id:/ {routes[date]++} \
+		/Error publishing route id/ {error[date]++} \
+		/token already minted/ {already_minted[date]++} \
+		/insufficient funds for gas/ {insufficient_funds[date]++} \
+		/method handler crashed/ {handler_crashed[date]++} \
+		/nonce too low/ {low_nonce[date]++} \
+		/replacement transaction underpriced/ { underpriced[date]++ } \
+		END {for (d in routes) \
+			print d, "Routes:", routes[d], \
+			"Published:", success[d]+0, \
+			"With error:", error[d]+0, \
+			"Already minted:", already_minted[d]+0, \
+			"insufficient funds:", insufficient_funds[d]+0, \
+			"method handler crashed: ", handler_crashed[d]+0, \
+			"nonce too low:", low_nonce[d]+0, \
+			"replacement transaction underpriced: ", underpriced[d]+0\
+		}' | sort -n 
+
+count_blockchain_routes_staging:
+	docker run --rm \
+		-v ~/.aws:/root/.aws \
+		-i --entrypoint python rodaapp:blockchain_publisher \
+		query_blockchain_routes.py

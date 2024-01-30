@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy function code
 COPY tribu_datapipeline/lambda_blockchain_publisher/lambda_blockchain_publish.py ./ 
+COPY tribu_datapipeline/lambda_blockchain_publisher/query_blockchain_routes.py ./ 
 COPY python_utilities/utils.py ./python_utilities/
 
 # Set the CMD to your handler (could also be done as a parameter override outside of the Dockerfile)

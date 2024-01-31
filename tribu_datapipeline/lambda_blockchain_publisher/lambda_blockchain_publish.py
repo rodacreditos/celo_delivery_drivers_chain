@@ -45,7 +45,7 @@ from typing import Dict, Any
 from web3 import Web3, HTTPProvider, Account
 from web3.middleware import geth_poa_middleware
 from python_utilities.utils import validate_date, read_csv_from_s3, read_yaml_from_s3, read_json_from_s3, format_dashed_date, yesterday, logger, \
-    				setup_local_logger, list_s3_files, RODAAPP_BUCKET_PREFIX
+    				setup_local_logger, list_s3_files, dict_to_json_s3, RODAAPP_BUCKET_PREFIX
 
 
 def fetch_celo_credentials(environment: str):
@@ -200,6 +200,9 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     processing_date = event.get("processing_date")
     processing_date = validate_date(processing_date) if processing_date else yesterday()
     environment = event.get("environment", "staging")
+    input_prefix = os.path.join(RODAAPP_BUCKET_PREFIX, f"rappi_driver_routes/date={format_dashed_date(processing_date)}/")
+    celo_published_path = os.path.join(RODAAPP_BUCKET_PREFIX, environment, "celo_published_routes",
+                                           f"date={format_dashed_date(processing_date)}", "already_published_routes")
 
     logger.info(f"Parameters: environment: {environment}, processing date: {processing_date}")
 
@@ -208,18 +211,22 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     web3 = connect_to_blockchain(provider_url)
 
     logger.info('Reading CSV data:')
-    csv_file_keys = list_s3_files(os.path.join(RODAAPP_BUCKET_PREFIX, f"rappi_driver_routes/date={format_dashed_date(processing_date)}/"))
+    csv_file_keys = list_s3_files(input_prefix)
     csv_data = []
     for key in csv_file_keys:
         logger.info(f"    -> reading {key}")
         for row in read_csv_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, key)):
             csv_data.append(row)
 
-    publish_to_celo(web3, roda_route_contract_addr, roda_route_contract_abi, csv_data, mnemonic)
+    all_success, published_routes = publish_to_celo(web3, roda_route_contract_addr, roda_route_contract_abi, csv_data, mnemonic)
+    logger.info(f"uploading to s3 routes that already were published: {celo_published_path}")
+    dict_to_json_s3(published_routes, celo_published_path)
 
-
-    logger.info("FINISHED SUCCESSFULLY: Tribu data processing task")
-    return "FINISHED SUCCESSFULLY: Tribu data processing task"
+    if all_success:
+        logger.info("FINISHED SUCCESSFULLY: Tribu data processing task")
+        return "FINISHED SUCCESSFULLY: Tribu data processing task"
+    else:
+        raise Exception(f"There were errors while publishing routes, only {len(published_routes)} transaction were published of {len(csv_data)}.")
 
 
 if __name__ == "__main__":

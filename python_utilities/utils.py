@@ -158,6 +158,12 @@ def dict_to_yaml_s3(data_dict, s3_path):
         upload_buffer_to_s3(s3_path, yaml_buffer)
 
 
+def dict_to_json_s3(data_dict, s3_path):
+    with StringIO() as json_buffer:
+        json.dump(data_dict, json_buffer)
+        upload_buffer_to_s3(s3_path, json_buffer)
+
+
 def dicts_to_csv(dict_list: list, filepath: str) -> None:
     """
     Convert a list of dictionaries with the same keys into a CSV file.

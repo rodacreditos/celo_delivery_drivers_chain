@@ -40,6 +40,7 @@ Note:
 import argparse
 import logging
 import os
+import time
 from typing import Dict, Any
 from web3 import Web3, HTTPProvider, Account
 from web3.middleware import geth_poa_middleware
@@ -65,7 +66,43 @@ def connect_to_blockchain(provider_url: str):
     return web3
 
 
+def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=600):
+    """
+    Waits for the transaction to be mined and gets the transaction receipt, with a timeout.
+
+    :param web3: Web3 instance connected to the Celo network.
+    :param tx_hash: The hash of the transaction to monitor.
+    :param poll_interval: Time in seconds between checks.
+    :param timeout: Time in seconds to wait before giving up.
+
+    :return: The transaction receipt, or None if timed out.
+    """
+    logger.info(f"    -> Waiting for transaction to be mined (tx hash: {tx_hash.hex()})")
+    start_time = time.time()
+
+    while True:
+        if time.time() - start_time > timeout:
+            logger.warning(f"    -> Transaction receipt timeout for tx hash: {tx_hash.hex()}")
+            return None
+        tx_receipt = web3.eth.get_transaction_receipt(tx_hash)
+        if tx_receipt:
+            return tx_receipt
+        time.sleep(poll_interval)
+
+
 def publish_to_celo(web3, contract_address, abi, data, mnemonic):
+    """
+    Publishes transactions to the Celo blockchain, stops if any transaction fails.
+
+    :param web3: Web3 instance connected to the Celo network.
+    :param contract_address: The address of the smart contract on Celo.
+    :param abi: The ABI of the contract.
+    :param data: The data to be published to the blockchain.
+    :param mnemonic: The mnemonic for the wallet.
+
+    :return: A dictionary of published routes with transaction details and status.
+    """
+    logger.info(f"About to publish {len(data)} transactions...")
     contract = web3.eth.contract(address=contract_address, abi=abi)
 
 
@@ -75,12 +112,13 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
     # Derive the account from the mnemonic
     account = Account.from_mnemonic(mnemonic)
     nonce = web3.eth.get_transaction_count(account.address)
+
+    published_routes = {}
+    all_success = True
     
     # Iterate over the data and publish each row to Celo
     for route in data:
         try:
-            logger.info(f"Publishing route id: {route['routeID']}")
-
             route_id = route['routeID']
             timestamp_start = route['timestampStart']
             timestamp_end = route['timestampEnd']
@@ -96,6 +134,8 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
                                 _distance=int(measured_distance)
                             ).estimate_gas({'from': account.address})
 
+            gas_price = web3.eth.gas_price
+
             tx = contract.functions.recordRoute(
                 to=celo_address,
                 routeId=int(route_id),
@@ -106,21 +146,42 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
                 'from': account.address,
                 'nonce': nonce,
                 'gas': estimated_gas + 100000,  # extra margin for gas
-                'gasPrice': web3.eth.gas_price
+                'gasPrice': gas_price
             })
 
             # Sign the transaction
             signed_tx = account.sign_transaction(tx)
+            tx_hash = Web3.keccak(signed_tx.rawTransaction)
+            logger.info(f"Publishing route id {route['routeID']}, with: nonce = {nonce}, gas_price = {gas_price}, and tx_hash = {tx_hash.hex()}")
 
             # Send the transaction
             tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            logger.info(f"    -> Transaction successfully sent, hash: {tx_hash.hex()}")
+            logger.info(f"    -> Sent transaction for route id {route_id}, awaiting receipt...")
+
+            # Wait until transaction is successfully receipt
+            tx_receipt = wait_for_transaction_receipt(web3, tx_hash)
+
+            if not tx_receipt:
+                logger.error(f"    -> Failed to get receipt for route id {route_id}. Stopping further transactions.")
+                all_success = False
+                break
+
+            logger.info(f"    -> Transaction successfully sent: route id {route['routeID']}, hash {tx_hash.hex()}")
+            published_routes[route_id] = {
+                "nonce": nonce,
+                "gas_price": gas_price,
+                "tx_hash": tx_hash.hex()
+            }
 
             # Increment the nonce for subsequent transactions
             nonce += 1
 
         except Exception as e:
             logger.error(f"    -> Error publishing route id {route['routeID']}: {e}")
+            all_success = False
+            break
+
+    return all_success, published_routes
 
 def handler(event: Dict[str, Any], context: Any) -> None:
     """

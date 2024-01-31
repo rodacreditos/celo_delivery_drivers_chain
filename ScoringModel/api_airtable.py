@@ -2,7 +2,7 @@ from airtable import Airtable
 import pandas as pd
 import numpy as np
 
-def get_table_Airtable(table_name1, personal_access_token,base_key, view_name=None):
+def get_table_Airtable(table_name1, personal_access_token,base_key, fields=None, view_name=None):
 
     """
     Gets data from a specific Airtable table, optionally through a custom view.
@@ -19,15 +19,16 @@ def get_table_Airtable(table_name1, personal_access_token,base_key, view_name=No
 
     table_name = table_name1  # Nombre de tu tabla
     api_key = personal_access_token  # Tu Personal Access Token
-
     airtable = Airtable(base_key, table_name, api_key)
-
-    # Si se proporciona una vista, se obtienen los registros de esa vista; de lo contrario, de toda la tabla
+    # Determina los parámetros para obtener los registros
+    params = {}
+    if fields:
+        params['fields'] = fields
     if view_name:
-        records = airtable.get_all(view=view_name)
-    else:
-        records = airtable.get_all()
+        params['view'] = view_name
 
+    print("Obteniendo registros...")
+    records = airtable.get_all(**params)
     # Convierte los registros en una lista de diccionarios
     records_dict = [record['fields'] for record in records]
 

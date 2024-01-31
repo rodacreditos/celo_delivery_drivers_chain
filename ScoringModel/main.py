@@ -1,17 +1,22 @@
 import pandas as pd
 import numpy as np
 import os
+import sys
+sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba en la jerarquía
 
 from api_airtable import get_table_Airtable
 from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
 # Constantes
-
 
 airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
 airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
 
 base_key = airtable_credentials['BASE_ID']
 personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
+
+fields_credito = ["ID CRÉDITO", "ESTADO", "ID Cliente nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados"]
+fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "Promedio monto créditos", "Numero de creditos REAL"]
+
 
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
 estados_deseados_credito = ["PAGADO", "EN PROCESO"]
@@ -166,7 +171,7 @@ def aplicar_calculo(row):
     if row['Tiene Credito Perdido']:
         return 0
     else:
-        return calcular_score(row['puntaje_inicial'], W1, W2, row['Numero de creditos REAL_puntaje'], row['Promedio monto créditos_puntaje'], row['Puntaje Ponderado Creditos'])
+        return calcular_score(row['puntaje_inicial'], W1, W2, row['Num_Creditos_puntaje'], row['Monto_Prom_Creditos_puntaje'], row['Puntaje_Ponderado_Creditos'])
 
 # Modular functions
     
@@ -179,8 +184,8 @@ def obtener_datos(token):
     :return: Two DataFrames, one for credits and one for contacts.
 
     """
-    DF_solicitud_credito = get_table_Airtable('Creditos', token, 'Scoring_View', base_key)
-    DF_contactos = get_table_Airtable('Contactos', token, 'Scoring_View',base_key)
+    DF_solicitud_credito = get_table_Airtable('Creditos', token, base_key,fields_credito, 'Scoring_View')
+    DF_contactos = get_table_Airtable('Contactos', token, base_key,fields_contactos, 'Scoring_View')
     return DF_solicitud_credito, DF_contactos
 
 def transformar_datos(DF_contactos, DF_solicitud_credito):
@@ -207,6 +212,15 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     DF_solicitud_credito = DF_solicitud_credito[DF_solicitud_credito["ESTADO"].isin(estados_deseados_credito)]
     DF_contactos = DF_contactos[DF_contactos["ID's Créditos"].notna()]
 
+
+    # Cambiar el nombre de las columnas
+    DF_solicitud_credito = DF_solicitud_credito.rename(columns={'Días mora/atraso promedio': 'Dias_Atraso_Prom', 'Días mora/atraso acumulados': 'Dias_Atraso_Acum'})
+    DF_contactos = DF_contactos.rename(columns={'Promedio monto créditos': 'Monto_Prom_Creditos', 'Numero de creditos REAL': 'Num_Creditos'})
+
+# Ahora las columnas tienen nuevos nombres en el DataFrame
+
+
+
     return DF_contactos, DF_solicitud_credito
 
 def calcular_puntajes(DF_contactos, DF_solicitud_credito):
@@ -220,20 +234,20 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito):
     """
 
     # Asignación de puntajes
-    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Promedio monto créditos')
-    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Numero de creditos REAL')
+    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Monto_Prom_Creditos')
+    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Num_Creditos')
 
-    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Días mora/atraso promedio', limites_atraso_promedio, puntajes_atraso_promedio)
-    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Días mora/atraso acumulados', limites_atraso_acumulado, puntajes_atraso_acumulado)
+    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Prom', limites_atraso_promedio, puntajes_atraso_promedio)
+    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Acum', limites_atraso_acumulado, puntajes_atraso_acumulado)
 
-    DF_solicitud_credito['Puntaje Final'] = (DF_solicitud_credito['Días mora/atraso promedio_puntaje'] + DF_solicitud_credito['Días mora/atraso acumulados_puntaje']) / 2
+    DF_solicitud_credito['Puntaje_Creditos_Comportamiento'] = (DF_solicitud_credito['Dias_Atraso_Prom_puntaje'] + DF_solicitud_credito['Dias_Atraso_Acum_puntaje']) / 2
 
     # Agrupación y ponderación de puntajes por cliente
-    puntajes_por_cliente = DF_solicitud_credito.groupby('ID Cliente nocode')['Puntaje Final'].apply(list)
+    puntajes_por_cliente = DF_solicitud_credito.groupby('ID Cliente nocode')['Puntaje_Creditos_Comportamiento'].apply(list)
     puntajes_ponderados = puntajes_por_cliente.apply(ponderar_puntajes)
 
     puntajes_ponderados_df = puntajes_ponderados.reset_index()
-    puntajes_ponderados_df.rename(columns={'Puntaje Final': 'Puntaje Ponderado Creditos', 'ID Cliente nocode': 'ID CLIENTE'}, inplace=True)
+    puntajes_ponderados_df.rename(columns={'Puntaje_Creditos_Comportamiento': 'Puntaje_Ponderado_Creditos', 'ID Cliente nocode': 'ID CLIENTE'}, inplace=True)
 
     return DF_contactos, puntajes_ponderados_df
 
@@ -259,7 +273,7 @@ def unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_so
     DF_contactos['puntaje_inicial'] = 500
 
     # Calcular el score final
-    DF_contactos['score_calculado'] = DF_contactos.apply(aplicar_calculo, axis=1)
+    DF_contactos['Puntaje_Final'] = DF_contactos.apply(aplicar_calculo, axis=1)
 
     return DF_contactos
 
@@ -269,8 +283,9 @@ def run(token):
     DF_solicitud_credito, DF_contactos = obtener_datos(token)
     DF_contactos, DF_solicitud_credito = transformar_datos(DF_contactos, DF_solicitud_credito)
     DF_contactos, puntajes_ponderados_df = calcular_puntajes(DF_contactos, DF_solicitud_credito)
+    print(DF_solicitud_credito)
     DF_contactos = unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_solicitud_credito)
-    return DF_contactos
+    return DF_contactos, DF_solicitud_credito
 
 
 # Lambda handler
@@ -288,13 +303,17 @@ def handler(event, context):
     print("inicio procesamiento handler")
 
     try:
-        df_contactos_procesados = run(personal_access_token)
+        df_contactos_procesados, df_creditos_procesados = run(personal_access_token)
         # Aquí puedes añadir código para manejar df_contactos_procesados, 
         # como guardarlo en S3 o procesarlo de alguna manera.
 
-        # Por ahora, solo vamos a imprimir un mensaje.
+        nombre_archivo = "contactos_procesados.xlsx"
+        nombre_archivo_2 = "creditos_procesados.xlsx"
+        # Guarda el DataFrame en un archivo Excel en el directorio actual
+        df_contactos_procesados.to_excel(nombre_archivo, index=False)
+        df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
         print(f"Procesamiento completado con {len(df_contactos_procesados)} registros.")
-
+        print(df_contactos_procesados)
         return {
             'statusCode': 200,
             'body': 'Procesamiento completado exitosamente.'
@@ -302,7 +321,7 @@ def handler(event, context):
     except Exception as e:
         print(f"Error durante el procesamiento: {e}")
         return {
-            'statusCode': 500,
+            'statusCode': 500,  
             'body': 'Error durante el procesamiento.'
         }
     print("Procesamiento completado handler")

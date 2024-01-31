@@ -85,7 +85,7 @@ def connect_to_blockchain(provider_url: str):
     return web3
 
 
-def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=600):
+def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=600, max_attempts=5):
     """
     Waits for the transaction to be mined and gets the transaction receipt, with a timeout.
 
@@ -98,14 +98,27 @@ def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=600):
     """
     logger.info(f"    -> Waiting for transaction to be mined (tx hash: {tx_hash.hex()})")
     start_time = time.time()
+    attempts = 0
 
     while True:
+        try:
+            tx_receipt = web3.eth.get_transaction_receipt(tx_hash)
+            if tx_receipt:
+                return tx_receipt
+        except Exception as e:
+            error_message = str(e)
+            if "not found" in error_message and attempts < max_attempts:
+                logger.warning(f"    -> Transaction {tx_hash.hex()} not found. Retrying...")
+                attempts += 1
+            else:
+                # Handle other errors or give up after max_attempts
+                logger.error(f"    -> Error fetching receipt for tx hash: {tx_hash.hex()}: {e}")
+                return None
+
         if time.time() - start_time > timeout:
             logger.warning(f"    -> Transaction receipt timeout for tx hash: {tx_hash.hex()}")
             return None
-        tx_receipt = web3.eth.get_transaction_receipt(tx_hash)
-        if tx_receipt:
-            return tx_receipt
+
         time.sleep(poll_interval)
 
 

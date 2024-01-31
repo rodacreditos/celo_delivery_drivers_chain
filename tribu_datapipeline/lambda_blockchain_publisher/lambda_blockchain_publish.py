@@ -206,7 +206,7 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
                 }
                 continue
             else:
-                logger.error(f"Error publishing route id {route_id}: {e}")
+                logger.error(f"    -> Error publishing route id {route_id}: {e}")
                 all_success = False
                 break
 

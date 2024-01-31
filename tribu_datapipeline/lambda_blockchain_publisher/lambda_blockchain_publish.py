@@ -44,6 +44,7 @@ import time
 from typing import Dict, Any
 from web3 import Web3, HTTPProvider, Account
 from web3.middleware import geth_poa_middleware
+from botocore.exceptions import ClientError
 from python_utilities.utils import validate_date, read_csv_from_s3, read_yaml_from_s3, read_json_from_s3, format_dashed_date, yesterday, logger, \
     				setup_local_logger, list_s3_files, dict_to_json_s3, RODAAPP_BUCKET_PREFIX
 
@@ -58,6 +59,24 @@ def fetch_celo_credentials(environment: str):
 def fetch_contract_info(environment: str):
     celo_contracts = read_json_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, f"credentials/roda_celo_contracts_{environment}.json"))
     return celo_contracts['RODA_ROUTE_CONTRACT_ADDR'], celo_contracts['RODA_ROUTE_CONTRACT_ABI']
+
+
+def fetch_published_routes(s3_path: str):
+    """
+    Fetches the published routes from an S3 path.
+
+    :param s3_path: The S3 path to fetch the data from.
+    :return: The data from the S3 path, or an empty dictionary if the path does not exist.
+    """
+    try:
+        return read_json_from_s3(s3_path)
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'NoSuchKey':
+            # Return an empty dictionary if the S3 path does not exist
+            return {}
+        else:
+            # Re-raise the exception if it's not a missing key error
+            raise
 
 
 def connect_to_blockchain(provider_url: str):
@@ -183,6 +202,23 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
 
     return all_success, published_routes
 
+
+def filter_out_published_routes(routes, celo_published_path):
+    # fetch published routes and filter them out for avoiding duplicated sents.
+    published_routes = fetch_published_routes(celo_published_path)
+    return [route for route in routes if route["routeID"] in published_routes]
+
+
+def fetch_input_csv_data(input_prefix):
+    csv_file_keys = list_s3_files(input_prefix)
+    csv_data = []
+    for key in csv_file_keys:
+        logger.info(f"    -> reading {key}")
+        for row in read_csv_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, key)):
+            csv_data.append(row)
+    return csv_data
+
+
 def handler(event: Dict[str, Any], context: Any) -> None:
     """
     Handler function for processing Tribu data.
@@ -211,12 +247,8 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     web3 = connect_to_blockchain(provider_url)
 
     logger.info('Reading CSV data:')
-    csv_file_keys = list_s3_files(input_prefix)
-    csv_data = []
-    for key in csv_file_keys:
-        logger.info(f"    -> reading {key}")
-        for row in read_csv_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, key)):
-            csv_data.append(row)
+    csv_data = fetch_input_csv_data(input_prefix)
+    csv_data = filter_out_published_routes(csv_data, celo_published_path)
 
     all_success, published_routes = publish_to_celo(web3, roda_route_contract_addr, roda_route_contract_abi, csv_data, mnemonic)
     logger.info(f"uploading to s3 routes that already were published: {celo_published_path}")

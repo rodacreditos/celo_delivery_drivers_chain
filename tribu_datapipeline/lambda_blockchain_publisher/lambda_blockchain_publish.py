@@ -196,9 +196,19 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
             nonce += 1
 
         except Exception as e:
-            logger.error(f"    -> Error publishing route id {route['routeID']}: {e}")
-            all_success = False
-            break
+            error_message = str(e)
+            if "ERC721: token already minted" in error_message:
+                logger.info(f"Token already minted for route id {route_id}. Continuing with next transaction.")
+                published_routes[route_id] = {
+                    "nonce": "unkown",
+                    "gas_price": "unkown",
+                    "tx_hash": "already minted"
+                }
+                continue
+            else:
+                logger.error(f"Error publishing route id {route_id}: {e}")
+                all_success = False
+                break
 
     return all_success, published_routes
 

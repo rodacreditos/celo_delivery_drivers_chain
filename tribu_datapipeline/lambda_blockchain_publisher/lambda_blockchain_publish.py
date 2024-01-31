@@ -191,6 +191,7 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
             logger.info(f"    -> Sent transaction for route id {route_id}, awaiting receipt...")
 
             # Wait until transaction is successfully receipt
+            time.sleep(2) # wait 2 seconds before verifying transaction receipt
             tx_receipt = wait_for_transaction_receipt(web3, tx_hash)
 
             if not tx_receipt:

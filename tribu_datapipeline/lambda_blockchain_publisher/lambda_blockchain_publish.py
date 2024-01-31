@@ -265,8 +265,8 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     dict_to_json_s3(published_routes, celo_published_path)
 
     if all_success:
-        logger.info("FINISHED SUCCESSFULLY: Tribu data processing task")
-        return "FINISHED SUCCESSFULLY: Tribu data processing task"
+        logger.info("FINISHED SUCCESSFULLY: blockchain publisher task")
+        return "FINISHED SUCCESSFULLY: blockchain publisher task"
     else:
         raise Exception(f"There were errors while publishing routes, only {len(published_routes)} transaction were published of {len(csv_data)}.")
 

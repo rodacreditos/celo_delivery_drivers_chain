@@ -216,7 +216,7 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
 def filter_out_published_routes(routes, celo_published_path):
     # fetch published routes and filter them out for avoiding duplicated sents.
     published_routes = fetch_published_routes(celo_published_path)
-    return [route for route in routes if route["routeID"] in published_routes]
+    return [route for route in routes if route["routeID"] not in published_routes]
 
 
 def fetch_input_csv_data(input_prefix):

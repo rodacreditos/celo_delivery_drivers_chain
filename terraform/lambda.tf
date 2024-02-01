@@ -38,6 +38,8 @@ resource "aws_lambda_function" "publish_to_blockchain" {
   image_uri    = "062988117074.dkr.ecr.us-east-2.amazonaws.com/rodaapp:blockchain_publisher"
 
   role    = aws_iam_role.lambda_exec_role.arn
+
+  timeout = 900  # Timeout in seconds (current value is 15 minutes)
 }
 
 resource "aws_lambda_function" "scoring_model" {

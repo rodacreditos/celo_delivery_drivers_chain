@@ -14,7 +14,7 @@ airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
 base_key = airtable_credentials['BASE_ID']
 personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
 
-fields_credito = ["ID CRÉDITO", "ESTADO", "ID Cliente nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados"]
+fields_credito = ["ID CRÉDITO", "ESTADO", "ID Cliente nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados", "# Acuerdos FECHA cumplido copy", "Cantidad acuerdos"]
 fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "Promedio monto créditos", "Numero de creditos REAL"]
 
 
@@ -25,6 +25,10 @@ limites_atraso_promedio = [0, 7, 15, 26, 31, 60, 90]
 puntajes_atraso_promedio = [1000, 800, 600, 400, 100,0]
 limites_atraso_acumulado = [0, 20, 40, 69, 180, 250]
 puntajes_atraso_acumulado = [1000, 700, 400, 200, 0]
+
+# Bonus Value
+
+bonus_value = 50
 
 # Ponderaciones para el cálculo del score 
 W1=0
@@ -206,6 +210,8 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     DF_solicitud_credito['Días mora/atraso promedio'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso promedio'], errors='coerce')
     DF_solicitud_credito['Días mora/atraso acumulados'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso acumulados'], errors='coerce')
     DF_solicitud_credito['ID Cliente nocode'] = pd.to_numeric(DF_solicitud_credito['ID Cliente nocode'])
+    DF_solicitud_credito['# Acuerdos FECHA cumplido copy'] = pd.to_numeric(DF_solicitud_credito['# Acuerdos FECHA cumplido copy'])
+    DF_solicitud_credito['Cantidad acuerdos'] = pd.to_numeric(DF_solicitud_credito['Cantidad acuerdos'])
 
     # Filtrado de DataFrames
     DF_contactos = DF_contactos[~DF_contactos["Status"].isin(estados_deseados)]
@@ -214,14 +220,32 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
 
 
     # Cambiar el nombre de las columnas
-    DF_solicitud_credito = DF_solicitud_credito.rename(columns={'Días mora/atraso promedio': 'Dias_Atraso_Prom', 'Días mora/atraso acumulados': 'Dias_Atraso_Acum'})
+    DF_solicitud_credito = DF_solicitud_credito.rename(columns={'Días mora/atraso promedio': 'Dias_Atraso_Prom', 'Días mora/atraso acumulados': 'Dias_Atraso_Acum', '# Acuerdos FECHA cumplido copy':'Num_Acuerdos_Cumplidos'})
     DF_contactos = DF_contactos.rename(columns={'Promedio monto créditos': 'Monto_Prom_Creditos', 'Numero de creditos REAL': 'Num_Creditos'})
 
-# Ahora las columnas tienen nuevos nombres en el DataFrame
+    # Ahora las columnas tienen nuevos nombres en el DataFrame
 
 
 
     return DF_contactos, DF_solicitud_credito
+
+def asignar_bonus_acuerdos(DF_solicitud_credito, bonus):
+    # Calcular la razón entre 'Num_Acuerdos_Cumplidos' y 'Cantidad acuerdos'
+    ratio = DF_solicitud_credito['Num_Acuerdos_Cumplidos'] / DF_solicitud_credito['Cantidad acuerdos']
+    
+    # Identificar las filas donde la razón es igual a 1 y el 'Puntaje_Del_Credito' es diferente de cero
+    condicion = (ratio == 1) & (DF_solicitud_credito['Puntaje_Del_Credito'] != 0)
+    
+    # Sumar el bonus al 'Puntaje_Del_Credito' donde la condición es verdadera
+    DF_solicitud_credito.loc[condicion, 'Puntaje_Del_Credito'] += bonus
+    
+    # Crear una nueva columna 'Bono_Aplicado' que indica si se aplicó el bono
+    DF_solicitud_credito['Bono_Aplicado'] = False  # Inicializar todos los valores como False
+    DF_solicitud_credito.loc[condicion, 'Bono_Aplicado'] = True  # Asignar True donde se aplicó el bono
+    
+    # Devolver el DataFrame actualizado
+    return DF_solicitud_credito
+
 
 def calcular_puntajes(DF_contactos, DF_solicitud_credito):
 
@@ -234,20 +258,23 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito):
     """
 
     # Asignación de puntajes
-    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Monto_Prom_Creditos')
-    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Num_Creditos')
+    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Monto_Prom_Creditos') # Creación Monto_Prom_Puntaje
+    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Num_Creditos') # Creación Num_Creditos_Puntaje
 
-    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Prom', limites_atraso_promedio, puntajes_atraso_promedio)
-    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Acum', limites_atraso_acumulado, puntajes_atraso_acumulado)
+    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Prom', limites_atraso_promedio, puntajes_atraso_promedio) # Creación Dias_Atraso_Prom_Puntaje
+    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Acum', limites_atraso_acumulado, puntajes_atraso_acumulado) # Creación Dias_Atraso_Acum_Puntaje
 
-    DF_solicitud_credito['Puntaje_Creditos_Comportamiento'] = (DF_solicitud_credito['Dias_Atraso_Prom_puntaje'] + DF_solicitud_credito['Dias_Atraso_Acum_puntaje']) / 2
+    DF_solicitud_credito['Puntaje_Del_Credito'] = (DF_solicitud_credito['Dias_Atraso_Prom_puntaje'] + DF_solicitud_credito['Dias_Atraso_Acum_puntaje']) / 2
 
-    # Agrupación y ponderación de puntajes por cliente
-    puntajes_por_cliente = DF_solicitud_credito.groupby('ID Cliente nocode')['Puntaje_Creditos_Comportamiento'].apply(list)
+    # Bonus Por Acuerdos cumplidos al 100%
+    DF_solicitud_credito = asignar_bonus_acuerdos(DF_solicitud_credito,bonus_value)
+
+    # Agrupación y ponderación de puntajes por cliente, aquí entra la lógica de que los créditos más recientes pesan más
+    puntajes_por_cliente = DF_solicitud_credito.groupby('ID Cliente nocode')['Puntaje_Del_Credito'].apply(list)
     puntajes_ponderados = puntajes_por_cliente.apply(ponderar_puntajes)
 
     puntajes_ponderados_df = puntajes_ponderados.reset_index()
-    puntajes_ponderados_df.rename(columns={'Puntaje_Creditos_Comportamiento': 'Puntaje_Ponderado_Creditos', 'ID Cliente nocode': 'ID CLIENTE'}, inplace=True)
+    puntajes_ponderados_df.rename(columns={'Puntaje_Del_Credito': 'Puntaje_Ponderado_Creditos', 'ID Cliente nocode': 'ID CLIENTE'}, inplace=True)
 
     return DF_contactos, puntajes_ponderados_df
 
@@ -310,7 +337,7 @@ def handler(event, context):
         nombre_archivo = "contactos_procesados.xlsx"
         nombre_archivo_2 = "creditos_procesados.xlsx"
         # Guarda el DataFrame en un archivo Excel en el directorio actual
-        df_contactos_procesados.to_excel(nombre_archivo, index=False)
+        # df_contactos_procesados.to_excel(nombre_archivo, index=False)
         df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
         print(f"Procesamiento completado con {len(df_contactos_procesados)} registros.")
         print(df_contactos_procesados)

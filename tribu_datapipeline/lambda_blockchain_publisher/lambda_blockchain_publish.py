@@ -273,7 +273,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     processing_date = event.get("processing_date")
     processing_date = validate_date(processing_date) if processing_date else yesterday()
     environment = event.get("environment", "staging")
-    timeout = int(event.get("timeout", "900"))
+    timeout = int(event.get("timeout", 900))
     input_prefix = os.path.join(RODAAPP_BUCKET_PREFIX, f"rappi_driver_routes/date={format_dashed_date(processing_date)}/")
     celo_published_path = os.path.join(RODAAPP_BUCKET_PREFIX, environment, "celo_published_routes",
                                            f"date={format_dashed_date(processing_date)}", "already_published_routes")

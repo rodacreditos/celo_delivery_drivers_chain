@@ -158,8 +158,9 @@ def publish_to_celo(web3, contract_address, abi, all_routes, published_routes, m
             measured_distance = route['measuredDistance']
             celo_address = route['celo_address']
 
-            # Skip to publish route in case it is already published
+            # Check if the route has already been published and skip if it has
             if route_id in published_routes:
+                logger.info(f"Route id {route_id} is already published. Skipping re-publishing.")
                 continue
 
             # Check if the elapsed time has exceeded 90% of the specified timeout duration.

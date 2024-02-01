@@ -76,7 +76,8 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
       "Type": "Task",
       "Resource": "${aws_lambda_function.publish_to_blockchain.arn}",
       "Parameters": {
-        "environment": "staging"
+        "environment": "staging",
+        "timeout": 900
       },
       "End": true
     }

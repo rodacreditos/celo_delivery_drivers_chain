@@ -276,7 +276,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     timeout = int(event.get("timeout", 900))
     input_prefix = os.path.join(RODAAPP_BUCKET_PREFIX, f"rappi_driver_routes/date={format_dashed_date(processing_date)}/")
     celo_published_path = os.path.join(RODAAPP_BUCKET_PREFIX, environment, "celo_published_routes",
-                                           f"date={format_dashed_date(processing_date)}", "already_published_routes")
+                                           f"date={format_dashed_date(processing_date)}", "already_published_routes.json")
 
     logger.info(f"Parameters: environment: {environment}, processing date: {processing_date}")
 

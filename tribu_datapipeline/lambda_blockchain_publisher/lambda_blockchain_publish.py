@@ -1,41 +1,44 @@
 """
-This script helps to publish data stored in S3, that were previously processed, to a blockchain platform. The script 
-fetches roda celo credentials and the address for the Route contract from S3, downloads the relevant dataset,
-and uploads routes as NFTs to a blockchain platform. Designed for deployment in a Docker container, it's suitable for
-execution in an AWS Lambda function and supports local testing.
+This Python script automates the publication of processed data from AWS S3 to the Celo blockchain platform, efficiently managing data as NFTs. It is designed with
+robustness in mind, incorporating features that ensure reliability and effectiveness in various execution environments, including AWS Lambda, Docker containers, and
+local execution setups.
 
-The script can be executed in various environments:
-1. staging (Default): It will use Celo Alfajores Testnet for publishing the routes.
-2. production: It will send routes to Celo mainnet.
-
-The script supports command-line arguments for easy local testing and debugging. It leverages functionality 
-from an accompanying 'utils.py' module for tasks like data processing and AWS S3 interactions.
-
-Environment Variables:
-- AWS_LAMBDA_RUNTIME_API: Used to determine if the script is running in an AWS Lambda environment.
+Key Features:
+- Environment Flexibility: Supports both staging (Celo Alfajores Testnet) and production (Celo Mainnet) environments, allowing for flexible deployment and testing.
+- Progress Tracking: Saves current progress to S3, enabling the script to resume from where it left off in subsequent executions, thereby avoiding the republishing of routes.
+- Timeout Management: Monitors execution time against a specified timeout, ensuring the script halts before reaching the limit. This feature is crucial for operations
+  within AWS Lambda, where execution time is capped.
+- Transaction Confirmation: Waits for blockchain transaction confirmations before proceeding, enhancing the reliability of the NFT publishing process.
 
 Usage:
-- AWS Lambda: Deploy the script as a Lambda function. The handler function will be invoked with event and context parameters.
-- Docker Container/CLI: Run the script with optional command-line arguments to specify the environment and processing date.
+The script supports various execution modes, detailed as follows:
+- AWS Lambda: Deploy and execute as a Lambda function, where it processes data based on event triggers.
+- Docker/CLI: Run the script within a Docker container or directly from the command line, utilizing arguments to specify operational parameters.
 
 Command-Line Arguments:
-- --date (-d): Optional. Specify the date for data retrieval in 'YYYY-MM-DD' format. If not provided, defaults to yesterday's date.
-- --environment (-e): Required. Specify the environment. Accepts 'staging' or 'production'.
+- `--date` (`-d`): Specifies the date for data retrieval and processing. Defaults to yesterday's date if not provided.
+- `--environment` (`-e`): Determines the execution environment ('staging' or 'production'). Required.
+- `--timeout` (`-t`): Sets the maximum execution time in seconds, ensuring the script concludes gracefully before reaching this limit. Optional, with a default of 900 seconds.
 
-Examples:
-- CLI: python lambda_blockchain_publish.py --date 2023-12-01 --environment staging
-- Docker: docker run --rm \
-		-v ~/.aws:/root/.aws \
-		-v $(shell pwd):/var/task \
-		-i --entrypoint python rodaapp:tribu_processing \
-		lambda_blockchain_publish.py --environment staging --date 2023-12-01
+Execution Examples:
+- CLI: `python lambda_blockchain_publish.py --date 2023-12-01 --environment staging`
+- Docker: 
+    ```bash
+    docker run --rm \
+        -v ~/.aws:/root/.aws \
+        -v $(pwd):/var/task \
+        -i --entrypoint python rodaapp:tribu_processing \
+        lambda_blockchain_publish.py --environment staging --date 2023-12-01
+    ```
 
-Output:
-- The script fetches data processed from Tribu on S3 and publishes it to a blockchain platform like Celo.
+Dependencies:
+- AWS S3 for data storage and retrieval.
+- Celo blockchain for publishing routes as NFTs.
+- Various Python libraries including `boto3`, `web3`, and utilities from an accompanying 'utils.py' module.
 
 Note:
-- The script requires access to AWS S3 for fetching parameters, and reading input data from tribu.
-- The script also requires access to the blockchain platform to publish routes.
+This script is part of a larger system designed for processing and publishing route data to the blockchain. It ensures data integrity and efficient processing by
+leveraging cloud storage and blockchain technologies.
 """
 import argparse
 import logging
@@ -50,6 +53,18 @@ from python_utilities.utils import validate_date, read_csv_from_s3, read_yaml_fr
 
 
 def fetch_celo_credentials(environment: str):
+    """
+    Fetches the Celo network credentials from S3 based on the specified environment.
+
+    Retrieves the mnemonic and provider URL for either the production or staging environment. The staging
+    environment defaults to using the Celo Alfajores Testnet.
+
+    Parameters:
+    - environment (str): Specifies the environment ('production' or 'staging') to determine which credentials to use.
+
+    Returns:
+    - tuple: Contains the mnemonic (str) and provider URL (str) for the specified environment.
+    """
     celo_credentials = read_yaml_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, "credentials/roda_celo_credentials.yaml"))
     celo_alfajores_rpc_url = "https://alfajores-forno.celo-testnet.org"
     provider_url = celo_credentials['PROVIDER_URL'] if environment == "production" else celo_alfajores_rpc_url
@@ -57,16 +72,35 @@ def fetch_celo_credentials(environment: str):
 
 
 def fetch_contract_info(environment: str):
+    """
+    Fetches the smart contract information for interacting with the blockchain.
+
+    Retrieves the contract address and ABI from S3, which are necessary for publishing routes to the blockchain.
+    The information is environment-specific, supporting different contracts for staging and production.
+
+    Parameters:
+    - environment (str): The execution environment ('production' or 'staging').
+
+    Returns:
+    - tuple: Contains the contract address (str) and ABI (list) for route publishing.
+    """
     celo_contracts = read_json_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, f"credentials/roda_celo_contracts_{environment}.json"))
     return celo_contracts['RODA_ROUTE_CONTRACT_ADDR'], celo_contracts['RODA_ROUTE_CONTRACT_ABI']
 
 
 def fetch_published_routes(s3_path: str):
     """
-    Fetches the published routes from an S3 path.
+    Retrieves the list of routes already published to the blockchain from S3.
 
-    :param s3_path: The S3 path to fetch the data from.
-    :return: The data from the S3 path, or an empty dictionary if the path does not exist.
+    This function aims to prevent re-publishing of routes by fetching a record of routes that have already been
+    successfully uploaded. If the specified S3 path does not exist, an empty dictionary is returned to signify
+    no previously published routes.
+
+    Parameters:
+    - s3_path (str): The S3 path where the record of published routes is stored.
+
+    Returns:
+    - dict: A dictionary of published routes, or an empty dictionary if the record does not exist.
     """
     try:
         return read_json_from_s3(s3_path)
@@ -80,6 +114,18 @@ def fetch_published_routes(s3_path: str):
 
 
 def connect_to_blockchain(provider_url: str):
+    """
+    Establishes a connection to the blockchain network.
+
+    Utilizes the provided URL to connect to the blockchain via Web3. This connection is essential for
+    interacting with the blockchain, including publishing transactions.
+
+    Parameters:
+    - provider_url (str): The URL of the blockchain provider to connect to.
+
+    Returns:
+    - Web3: An instance of Web3 connected to the specified blockchain network.
+    """
     web3 = Web3(HTTPProvider(provider_url))
     web3.middleware_onion.inject(geth_poa_middleware, layer=0)
     return web3
@@ -87,14 +133,20 @@ def connect_to_blockchain(provider_url: str):
 
 def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=300, max_attempts=5):
     """
-    Waits for the transaction to be mined and gets the transaction receipt, with a timeout.
+    Waits for a blockchain transaction to be mined and retrieves the transaction receipt.
 
-    :param web3: Web3 instance connected to the Celo network.
-    :param tx_hash: The hash of the transaction to monitor.
-    :param poll_interval: Time in seconds between checks.
-    :param timeout: Time in seconds to wait before giving up.
+    Periodically polls the blockchain for the transaction receipt until it is found or until a timeout is reached.
+    This ensures that a transaction has been successfully processed before proceeding.
 
-    :return: The transaction receipt, or None if timed out.
+    Parameters:
+    - web3 (Web3): The Web3 instance connected to the blockchain.
+    - tx_hash (HexBytes): The hash of the transaction to monitor.
+    - poll_interval (int, optional): Time in seconds between each poll. Defaults to 10.
+    - timeout (int, optional): Maximum time in seconds to wait for the transaction receipt. Defaults to 300.
+    - max_attempts (int, optional): Maximum number of attempts to fetch the transaction receipt. Defaults to 5.
+
+    Returns:
+    - dict or None: The transaction receipt if successful, None if timed out or after max attempts without success.
     """
     logger.info(f"    -> Waiting for transaction to be mined (tx hash: {tx_hash.hex()})")
     start_time = time.time()
@@ -125,15 +177,23 @@ def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=300, m
 
 def publish_to_celo(web3, contract_address, abi, all_routes, published_routes, mnemonic, timeout):
     """
-    Publishes transactions to the Celo blockchain, stops if any transaction fails.
+    Publishes route data to the Celo blockchain and return progress.
 
-    :param web3: Web3 instance connected to the Celo network.
-    :param contract_address: The address of the smart contract on Celo.
-    :param abi: The ABI of the contract.
-    :param data: The data to be published to the blockchain.
-    :param mnemonic: The mnemonic for the wallet.
+    Iterates over all provided routes, publishes each to the blockchain, and saves the progress to avoid
+    re-publishing. Monitors execution time to stop before the specified timeout, ensuring there's enough
+    time to save the current progress to S3.
 
-    :return: A dictionary of published routes with transaction details and status.
+    Parameters:
+    - web3 (Web3): Web3 instance for blockchain interactions.
+    - contract_address (str): The blockchain contract address.
+    - abi (list): The ABI of the blockchain contract.
+    - all_routes (list): List of all routes to be published.
+    - published_routes (dict): Record of routes already published to prevent duplicates.
+    - mnemonic (str): The mnemonic for accessing the blockchain wallet.
+    - timeout (int): Maximum allowed time (in seconds) for the function execution to ensure progress saving.
+
+    Returns:
+    - tuple: Contains a boolean indicating overall success and a dictionary of the updated published routes.
     """
     logger.info(f"About to publish {len(all_routes)} transactions...")
     start_time = time.time()
@@ -248,6 +308,15 @@ def publish_to_celo(web3, contract_address, abi, all_routes, published_routes, m
 
 
 def fetch_input_csv_data(input_prefix):
+    """
+    Fetches and reads CSV data from S3 based on the specified prefix.
+
+    Parameters:
+    - input_prefix (str): The S3 prefix to list and read CSV files from.
+
+    Returns:
+    - list: A list of dictionaries, each representing a row from the CSV files found at the specified prefix.
+    """
     csv_file_keys = list_s3_files(input_prefix)
     csv_data = []
     for key in csv_file_keys:
@@ -259,15 +328,31 @@ def fetch_input_csv_data(input_prefix):
 
 def handler(event: Dict[str, Any], context: Any) -> None:
     """
-    Handler function for processing Tribu data.
+    The primary handler function for processing and publishing route data to the blockchain.
 
-    Intended for use as the entry point in AWS Lambda, but also supports local execution.
-    The 'environment' in the event determines whether the data is to be publish to a TestNet or
-    to a production MainNet.
+    This function is designed for compatibility with AWS Lambda but also supports local execution or execution
+    within a Docker container. It processes Tribu data by publishing it to the blockchain and intelligently manages
+    execution time. It monitors for timeouts, ensuring there is sufficient time to save progress and avoid
+    republishing routes that have already been published. The function dynamically adjusts to prevent execution
+    from exceeding a specified timeout, allowing for efficient retries and progress continuation.
 
-    :param event: A dictionary containing 'environment' and optionally 'processing_date'.
-                  If 'processing_date' is not provided, defaults to yesterday's date.
-    :param context: Context information provided by AWS Lambda (unused in this function).
+    Parameters:
+    - event (Dict[str, Any]): A dictionary containing the execution parameters. Key parameters include
+      'environment' for specifying the execution context (staging or production, optional, defaults to staging), 'processing_date' for the
+      target date of the data to process (optional, defaults to yesterday date), and 'timeout' for the maximum allowed execution time in seconds
+      (optional, defaults to 900 seconds if not provided).
+    - context (Any): Context information provided by AWS Lambda. This parameter is not used within the function
+      but is required for AWS Lambda compatibility.
+
+    Returns:
+    - None: The function does not return a value but logs its progress and outcomes.
+
+    Note:
+    - For local or Docker execution, the function parses command-line arguments to populate the `event` dictionary.
+      The AWS Lambda execution environment provides the `event` and `context` parameters directly.
+    - The 'timeout' parameter in the `event` dictionary controls how long the function will attempt to publish routes
+      before stopping to save progress. This mechanism ensures that the function can halt gracefully before reaching
+      the Lambda execution time limit or other defined timeouts.
     """
     logger.setLevel(logging.INFO)
     logger.info("STARTING: Blockchain Publisher task.")

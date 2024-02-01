@@ -247,51 +247,47 @@ def asignar_bonus_acuerdos(DF_solicitud_credito, bonus):
     return DF_solicitud_credito
 
 
-def calcular_puntajes(DF_contactos, DF_solicitud_credito):
-
+def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value):
     """
-    Calculates and assigns scores in DataFrames according to predefined criteria.
+    Calculates and assigns scores on DataFrames based on predefined criteria, then combines the DataFrames and calculates the final score for each contact.
+    
+    1. Assigns scores based on quartiles and custom criteria in the DataFrames of contacts and credit applications.
+    2. Calculates a weighted score for each customer based on their credits, applying specific bonuses.
+    3. Combine the DataFrames to include the weighted scores and calculate a final score considering if they have missing credits.
 
-    :param DF_contactos: Contacts DataFrame.
-    :param DF_solicitud_credito: DataFrame de solicitudes de crédito.
-    :return: Contact DataFrame with calculated scores and an auxiliary DataFrame with weighted scores
+    Param DF_contacts: Contacts DataFrame.
+    :param DF_credit_application: Credit applications DataFrame.
+    :param average_delinquency_limits: Limits for the calculation of average days past due scores.
+    :param average_delinquency_scores: Scores assigned to the ranges of average days past due.
+    param cumulative_delinquency_limits: Limits for the calculation of cumulative overdue days scores.
+    param cumulative_delay_scores: Scores assigned to the ranges of cumulative overdue days.
+    :param bonus_value: Value of the bonus for 100% fulfilled agreements.
+    :return: Contact DataFrame with the final score calculated.
     """
 
     # Asignación de puntajes
-    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Monto_Prom_Creditos') # Creación Monto_Prom_Puntaje
-    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Num_Creditos') # Creación Num_Creditos_Puntaje
+    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Monto_Prom_Creditos')  # Creación Monto_Prom_Puntaje
+    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Num_Creditos')  # Creación Num_Creditos_Puntaje
 
-    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Prom', limites_atraso_promedio, puntajes_atraso_promedio) # Creación Dias_Atraso_Prom_Puntaje
-    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Acum', limites_atraso_acumulado, puntajes_atraso_acumulado) # Creación Dias_Atraso_Acum_Puntaje
+    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Prom', limites_atraso_promedio, puntajes_atraso_promedio)  # Creación Dias_Atraso_Prom_Puntaje
+    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Acum', limites_atraso_acumulado, puntajes_atraso_acumulado)  # Creación Dias_Atraso_Acum_Puntaje
 
     DF_solicitud_credito['Puntaje_Del_Credito'] = (DF_solicitud_credito['Dias_Atraso_Prom_puntaje'] + DF_solicitud_credito['Dias_Atraso_Acum_puntaje']) / 2
 
     # Bonus Por Acuerdos cumplidos al 100%
-    DF_solicitud_credito = asignar_bonus_acuerdos(DF_solicitud_credito,bonus_value)
+    DF_solicitud_credito = asignar_bonus_acuerdos(DF_solicitud_credito, bonus_value)
 
-    # Agrupación y ponderación de puntajes por cliente, aquí entra la lógica de que los créditos más recientes pesan más
+    # Agrupación y ponderación de puntajes por cliente
     puntajes_por_cliente = DF_solicitud_credito.groupby('ID Cliente nocode')['Puntaje_Del_Credito'].apply(list)
     puntajes_ponderados = puntajes_por_cliente.apply(ponderar_puntajes)
 
     puntajes_ponderados_df = puntajes_ponderados.reset_index()
     puntajes_ponderados_df.rename(columns={'Puntaje_Del_Credito': 'Puntaje_Ponderado_Creditos', 'ID Cliente nocode': 'ID CLIENTE'}, inplace=True)
 
-    return DF_contactos, puntajes_ponderados_df
-
-def unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_solicitud_credito):
-    """
-    Combine the DataFrames and calculate the final score for each contact.
-
-    :param DF_contactos: Contacts DataFrame.
-    :param puntajes_ponderados_df: DataFrame with weighted scores.
-    :param DF_solicitud_credito: DataFrame de solicitudes de crédito.
-    :return: Contacts DataFrame with the calculated score.
-    """
-
-    # Unir DF_contactos con los puntajes ponderados
+    # Unión de DF_contactos con los puntajes ponderados
     DF_contactos = DF_contactos.merge(puntajes_ponderados_df, on='ID CLIENTE', how='left')
 
-    # Crear columna 'Tiene Credito Perdido' en DF_solicitud_credito y luego unirla con DF_contactos
+    # Crear columna 'Tiene Credito Perdido' y luego unirla con DF_contactos
     DF_solicitud_credito['Tiene Credito Perdido'] = DF_solicitud_credito['Clasificación perdidos/no perdidos'].apply(lambda x: x == 'Perdido')
     clientes_con_credito_perdido = DF_solicitud_credito.groupby('ID Cliente nocode')['Tiene Credito Perdido'].any()
     clientes_con_credito_perdido = clientes_con_credito_perdido.reset_index().rename(columns={'ID Cliente nocode': 'ID CLIENTE'})
@@ -299,19 +295,19 @@ def unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_so
 
     DF_contactos['puntaje_inicial'] = 500
 
-    # Calcular el score final
+    # Cálculo del score final
     DF_contactos['Puntaje_Final'] = DF_contactos.apply(aplicar_calculo, axis=1)
 
     return DF_contactos
+
 
 # Standard process
 
 def run(token):
     DF_solicitud_credito, DF_contactos = obtener_datos(token)
     DF_contactos, DF_solicitud_credito = transformar_datos(DF_contactos, DF_solicitud_credito)
-    DF_contactos, puntajes_ponderados_df = calcular_puntajes(DF_contactos, DF_solicitud_credito)
+    DF_contactos = calcular_puntajes(DF_contactos, DF_solicitud_credito,limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value)
     print(DF_solicitud_credito)
-    DF_contactos = unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_solicitud_credito)
     return DF_contactos, DF_solicitud_credito
 
 
@@ -372,6 +368,8 @@ if __name__ == '__main__':
     # Ejecutar el handler como si estuviera en Lambda
     response = handler(fake_lambda_event, fake_lambda_context)
     print(response)
+
+
 
 
 

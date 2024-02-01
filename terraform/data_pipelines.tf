@@ -81,7 +81,7 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
       },
       "Retry": [
         {
-          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "ErrorEquals": ["States.TaskFailed"],
           "IntervalSeconds": 60,
           "MaxAttempts": 5,
           "BackoffRate": 2.0

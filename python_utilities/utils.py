@@ -96,7 +96,7 @@ def upload_buffer_to_s3(s3_path: str, buff: IOBase) -> None:
     Upload a buffer (like StringIO or BytesIO) to an S3 bucket.
 
     :param s3_path: The S3 path (e.g., 's3://bucket_name/key') where the buffer will be uploaded.
-    :param buff: An IO buffer (StringIO, BytesIO, etc.) containing the data to upload.
+    :param buff: An IO buffer (StringIO, BytesIO, etc.) containing the data to upload. This buffer should support the `.getvalue()` method to extract the data for uploading.
     """
     bucket_name, file_name = split_s3(s3_path)
     s3_client.put_object(

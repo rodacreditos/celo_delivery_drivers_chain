@@ -123,7 +123,7 @@ def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=300, m
         time.sleep(poll_interval)
 
 
-def publish_to_celo(web3, contract_address, abi, data, mnemonic):
+def publish_to_celo(web3, contract_address, abi, all_routes, published_routes, mnemonic):
     """
     Publishes transactions to the Celo blockchain, stops if any transaction fails.
 
@@ -135,7 +135,7 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
 
     :return: A dictionary of published routes with transaction details and status.
     """
-    logger.info(f"About to publish {len(data)} transactions...")
+    logger.info(f"About to publish {len(all_routes)} transactions...")
     contract = web3.eth.contract(address=contract_address, abi=abi)
 
 
@@ -146,17 +146,20 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
     account = Account.from_mnemonic(mnemonic)
     nonce = web3.eth.get_transaction_count(account.address)
 
-    published_routes = {}
     all_success = True
     
     # Iterate over the data and publish each row to Celo
-    for route in data:
+    for route in all_routes:
         try:
             route_id = route['routeID']
             timestamp_start = route['timestampStart']
             timestamp_end = route['timestampEnd']
             measured_distance = route['measuredDistance']
             celo_address = route['celo_address']
+
+            # Skip to publish route in case it is already published
+            if route_id in published_routes:
+                continue
 
             # Estimate gas for the transaction
             estimated_gas = contract.functions.recordRoute(
@@ -228,12 +231,6 @@ def publish_to_celo(web3, contract_address, abi, data, mnemonic):
     return all_success, published_routes
 
 
-def filter_out_published_routes(routes, celo_published_path):
-    # fetch published routes and filter them out for avoiding duplicated sents.
-    published_routes = fetch_published_routes(celo_published_path)
-    return [route for route in routes if route["routeID"] not in published_routes]
-
-
 def fetch_input_csv_data(input_prefix):
     csv_file_keys = list_s3_files(input_prefix)
     csv_data = []
@@ -272,10 +269,10 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     web3 = connect_to_blockchain(provider_url)
 
     logger.info('Reading CSV data:')
-    csv_data = fetch_input_csv_data(input_prefix)
-    csv_data = filter_out_published_routes(csv_data, celo_published_path)
+    all_routes = fetch_input_csv_data(input_prefix)
+    published_routes = fetch_published_routes(celo_published_path)
 
-    all_success, published_routes = publish_to_celo(web3, roda_route_contract_addr, roda_route_contract_abi, csv_data, mnemonic)
+    all_success, published_routes = publish_to_celo(web3, roda_route_contract_addr, roda_route_contract_abi, all_routes, published_routes, mnemonic)
     logger.info(f"uploading to s3 routes that already were published: {celo_published_path}")
     dict_to_json_s3(published_routes, celo_published_path)
 
@@ -283,7 +280,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
         logger.info("FINISHED SUCCESSFULLY: blockchain publisher task")
         return "FINISHED SUCCESSFULLY: blockchain publisher task"
     else:
-        raise Exception(f"There were errors while publishing routes, only {len(published_routes)} transaction were published of {len(csv_data)}.")
+        raise Exception(f"Only {len(published_routes)} transaction were published of {len(all_routes)}.")
 
 
 if __name__ == "__main__":

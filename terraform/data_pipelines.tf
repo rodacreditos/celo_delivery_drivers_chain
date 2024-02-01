@@ -79,6 +79,14 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
         "environment": "staging",
         "timeout": 900
       },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 5,
+          "BackoffRate": 2.0
+        }
+      ],
       "End": true
     }
   }

@@ -152,13 +152,43 @@ def read_csv_from_s3(s3_path: str) -> list:
     return [row for row in csv_reader]
 
 
-def dict_to_yaml_s3(data_dict, s3_path):
+def dict_to_yaml_s3(data_dict: dict, s3_path: str) -> None:
+    """
+    Converts a dictionary into YAML format and uploads it to an S3 bucket.
+
+    This function takes a dictionary, converts it to a YAML formatted string,
+    and then uploads the resulting YAML string to a specified path in an AWS S3 bucket.
+    The upload is facilitated by the `upload_buffer_to_s3` function.
+
+    Parameters:
+    - data_dict (dict): The dictionary to convert to YAML and upload.
+    - s3_path (str): The S3 bucket path where the YAML file will be uploaded. 
+      This path should include the bucket name and any desired prefixes.
+
+    Returns:
+    - None
+    """
     with StringIO() as yaml_buffer:
         yaml.dump(data_dict, yaml_buffer)
         upload_buffer_to_s3(s3_path, yaml_buffer)
 
 
-def dict_to_json_s3(data_dict, s3_path):
+def dict_to_json_s3(data_dict: dict, s3_path: str) -> None:
+    """
+    Converts a dictionary into JSON format and uploads it to an S3 bucket.
+
+    This function takes a dictionary, converts it to a JSON formatted string,
+    and then uploads the resulting JSON string to a specified path in an AWS S3 bucket.
+    The upload is facilitated by the `upload_buffer_to_s3` function.
+
+    Parameters:
+    - data_dict (dict): The dictionary to convert to JSON and upload.
+    - s3_path (str): The S3 bucket path where the JSON file will be uploaded.
+      This path should include the bucket name and any desired prefixes.
+
+    Returns:
+    - None
+    """
     with StringIO() as json_buffer:
         json.dump(data_dict, json_buffer)
         upload_buffer_to_s3(s3_path, json_buffer)

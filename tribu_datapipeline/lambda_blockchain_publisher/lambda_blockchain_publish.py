@@ -117,13 +117,13 @@ def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=300, m
                 return None
 
         if time.time() - start_time > timeout:
-            logger.warning(f"    -> Transaction receipt timeout for tx hash: {tx_hash.hex()}")
+            logger.error(f"    -> Transaction receipt timeout for tx hash: {tx_hash.hex()}")
             return None
 
         time.sleep(poll_interval)
 
 
-def publish_to_celo(web3, contract_address, abi, all_routes, published_routes, mnemonic):
+def publish_to_celo(web3, contract_address, abi, all_routes, published_routes, mnemonic, timeout):
     """
     Publishes transactions to the Celo blockchain, stops if any transaction fails.
 
@@ -136,6 +136,7 @@ def publish_to_celo(web3, contract_address, abi, all_routes, published_routes, m
     :return: A dictionary of published routes with transaction details and status.
     """
     logger.info(f"About to publish {len(all_routes)} transactions...")
+    start_time = time.time()
     contract = web3.eth.contract(address=contract_address, abi=abi)
 
 
@@ -160,6 +161,20 @@ def publish_to_celo(web3, contract_address, abi, all_routes, published_routes, m
             # Skip to publish route in case it is already published
             if route_id in published_routes:
                 continue
+
+            # Check if the elapsed time has exceeded 90% of the specified timeout duration.
+            # If so, stop publishing routes. This precaution ensures that the system has
+            # enough time to save progress and perform any necessary cleanup operations
+            # before the total timeout period is reached.
+            current_time = time.time()
+            elapsed_time = current_time - start_time
+            if elapsed_time  > timeout * 0.9:
+                logger.error(
+                    f"Approaching timeout limit ({timeout} seconds). Elapsed time: {elapsed_time:.2f} seconds. "
+                    "Stopping route publishing as a precaution."
+                )
+                all_success = False
+                break
 
             # Estimate gas for the transaction
             estimated_gas = contract.functions.recordRoute(
@@ -258,6 +273,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     processing_date = event.get("processing_date")
     processing_date = validate_date(processing_date) if processing_date else yesterday()
     environment = event.get("environment", "staging")
+    timeout = int(event.get("timeout", "900"))
     input_prefix = os.path.join(RODAAPP_BUCKET_PREFIX, f"rappi_driver_routes/date={format_dashed_date(processing_date)}/")
     celo_published_path = os.path.join(RODAAPP_BUCKET_PREFIX, environment, "celo_published_routes",
                                            f"date={format_dashed_date(processing_date)}", "already_published_routes")
@@ -272,7 +288,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     all_routes = fetch_input_csv_data(input_prefix)
     published_routes = fetch_published_routes(celo_published_path)
 
-    all_success, published_routes = publish_to_celo(web3, roda_route_contract_addr, roda_route_contract_abi, all_routes, published_routes, mnemonic)
+    all_success, published_routes = publish_to_celo(web3, roda_route_contract_addr, roda_route_contract_abi, all_routes, published_routes, mnemonic, timeout)
     logger.info(f"uploading to s3 routes that already were published: {celo_published_path}")
     dict_to_json_s3(published_routes, celo_published_path)
 
@@ -299,11 +315,20 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument("-d", "--date", help="date of the execution of this script", type=validate_date, required=False)
         parser.add_argument("-e", "--environment", help="Given the environment (staging or production)", choices=['staging', 'production'], required=True)
-        
+        parser.add_argument(
+            "-t", "--timeout",
+            type=int,  # or float if you need fractional seconds
+            help="Sets the maximum time (in seconds) for the function to run. "
+                "If this timeout is reached, the function will attempt to save the current progress in s3 before stopping. "
+                "Default is 900 seconds.",
+            default=900,
+            required=False
+        )
+
         args = parser.parse_args()
         setup_local_logger() # when it does not have env vars from aws, it means that this script is running locally 
         if args.date:
             handler(dict(processing_date=format_dashed_date(args.date),
-                            environment=args.environment), "dockerlocal")
+                            environment=args.environment, timeout=args.timeout), "dockerlocal")
         else:
-            handler(dict(environment=args.environment), "dockerlocal")
+            handler(dict(environment=args.environment, timeout=args.timeout), "dockerlocal")

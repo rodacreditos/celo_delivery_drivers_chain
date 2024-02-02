@@ -39,7 +39,7 @@ resource "aws_lambda_function" "publish_to_blockchain" {
 
   role    = aws_iam_role.lambda_exec_role.arn
 
-  timeout = 600  # Timeout in seconds (current value is 10 minutes)
+  timeout = 900  # Timeout in seconds (current value is 15 minutes)
 }
 
 resource "aws_lambda_function" "scoring_model" {

@@ -224,7 +224,8 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     DF_contactos['Promedio monto créditos'] = DF_contactos['Promedio monto créditos'].apply(replace_dict_with_empty)
     DF_contactos['Promedio monto créditos'] = pd.to_numeric(DF_contactos['Promedio monto créditos'])
     print("imprimiendo en transformar datos")
-    print(DF_contactos['ID Referidor Nocode'])
+    print(DF_contactos['ID Referidor Nocode'].unique())
+    print(DF_contactos['¿Referido RODA?'].unique())
     DF_contactos['ID Referidor Nocode'] = pd.to_numeric(DF_contactos['ID Referidor Nocode'])
 
     DF_solicitud_credito['Días mora/atraso promedio'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso promedio'], errors='coerce')
@@ -275,23 +276,9 @@ def afectaciones_por_referidos(df):
     print("Cleaning exitoso")
 
     # Crear estructura para identificar referidos correctamente
-    # Asegurarse de que los referidos no incluyan al referidor como referido
-    referidos_por_referidor = df[df['¿Referido RODA?'] == 'Sí'].groupby('ID Referidor Nocode')['ID CLIENTE'].apply(list).to_dict()
-    
-    # Actualizar la estructura para asegurar que no hay auto-referencias
-    for referidor, referidos in referidos_por_referidor.items():
-        if referidor in referidos:
-            referidos.remove(referidor)  # Eliminar auto-referencia si existe
-
-    print("Estructura para identificar referidos exitoso")
-
-    # Agregar columnas al DataFrame para análisis posterior
-    df['Num_referidos'] = df['ID CLIENTE'].apply(lambda x: len(referidos_por_referidor.get(x, [])))
-    df['Tiene_referidor'] = df['ID Referidor Nocode'].apply(lambda x: 'No' if x == 'No tiene' else 'Sí')
-    print("Columnas agregadas exitosamente")
-
-    #------------Referidos----------------
-
+   
+   
+   
     '''
     - Si el 20% o más de los referidos están en mora, NINGUN REFERIDO SUMA NADA
         - De lo contrario, por cada referido entre 800 y 1000, el score de referidor aumenta en 10%*(Score-800) (Pendiente definir si 10% está bien)
@@ -364,7 +351,7 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedi
     DF_contactos['Puntaje_Final'] = DF_contactos.apply(aplicar_calculo, axis=1)
 
 
-    DF_contactos, referidos_por_referidor = afectaciones_por_referidos(DF_contactos)
+    DF_contactos = afectaciones_por_referidos(DF_contactos)
     print(DF_contactos)
     return DF_contactos
 

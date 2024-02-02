@@ -15,7 +15,7 @@ base_key = airtable_credentials['BASE_ID']
 personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
 
 fields_credito = ["ID CRÉDITO", "ESTADO", "ID Cliente nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados", "# Acuerdos FECHA cumplido copy", "Cantidad acuerdos"]
-fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "Promedio monto créditos", "Numero de creditos REAL"]
+fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "Promedio monto créditos", "Numero de creditos REAL", "¿Referido RODA?", "ID Referidor Nocode"]
 
 
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
@@ -144,6 +144,23 @@ def ponderar_puntajes(puntajes):
 #puntaje_ponderado_ejemplo
 
 
+def asignar_bonus_acuerdos(DF_solicitud_credito, bonus):
+    # Calcular la razón entre 'Num_Acuerdos_Cumplidos' y 'Cantidad acuerdos'
+    ratio = DF_solicitud_credito['Num_Acuerdos_Cumplidos'] / DF_solicitud_credito['Cantidad acuerdos']
+    
+    # Identificar las filas donde la razón es igual a 1 y el 'Puntaje_Del_Credito' es diferente de cero
+    condicion = (ratio == 1) & (DF_solicitud_credito['Puntaje_Del_Credito'] != 0)
+    
+    # Sumar el bonus al 'Puntaje_Del_Credito' donde la condición es verdadera
+    DF_solicitud_credito.loc[condicion, 'Puntaje_Del_Credito'] += bonus
+    
+    # Crear una nueva columna 'Bono_Aplicado' que indica si se aplicó el bono
+    DF_solicitud_credito['Bono_Aplicado'] = False  # Inicializar todos los valores como False
+    DF_solicitud_credito.loc[condicion, 'Bono_Aplicado'] = True  # Asignar True donde se aplicó el bono
+    
+    # Devolver el DataFrame actualizado
+    return DF_solicitud_credito
+
 def calcular_score(puntaje_inicial, W1, W2, lambda_val, beta, puntajes_credito):
     """
     Calculate the score based on the formula provided.
@@ -206,6 +223,9 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     DF_contactos['Numero de creditos REAL'] = pd.to_numeric(DF_contactos['Numero de creditos REAL'])
     DF_contactos['Promedio monto créditos'] = DF_contactos['Promedio monto créditos'].apply(replace_dict_with_empty)
     DF_contactos['Promedio monto créditos'] = pd.to_numeric(DF_contactos['Promedio monto créditos'])
+    print("imprimiendo en transformar datos")
+    print(DF_contactos['ID Referidor Nocode'])
+    DF_contactos['ID Referidor Nocode'] = pd.to_numeric(DF_contactos['ID Referidor Nocode'])
 
     DF_solicitud_credito['Días mora/atraso promedio'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso promedio'], errors='coerce')
     DF_solicitud_credito['Días mora/atraso acumulados'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso acumulados'], errors='coerce')
@@ -229,22 +249,67 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
 
     return DF_contactos, DF_solicitud_credito
 
-def asignar_bonus_acuerdos(DF_solicitud_credito, bonus):
-    # Calcular la razón entre 'Num_Acuerdos_Cumplidos' y 'Cantidad acuerdos'
-    ratio = DF_solicitud_credito['Num_Acuerdos_Cumplidos'] / DF_solicitud_credito['Cantidad acuerdos']
+def score_inicial(df):
+
+    '''
+    Not final version, here demografic scoring will be built
+
+    '''
+
+    df['puntaje_inicial'] = 500
+
+    return df
+
+
+def afectaciones_por_referidos(df):
+
+    '''
+    Here we are building social_score
+
+    '''
+
+    print("Entró a afectaciones")
+    # Cleaning
+    df['¿Referido RODA?'] = df['¿Referido RODA?'].replace({'No se encuentra': 'No'})
+    df['ID Referidor Nocode'] = df['ID Referidor Nocode'].fillna('No tiene')
+    print("Cleaning exitoso")
+
+    # Crear estructura para identificar referidos correctamente
+    # Asegurarse de que los referidos no incluyan al referidor como referido
+    referidos_por_referidor = df[df['¿Referido RODA?'] == 'Sí'].groupby('ID Referidor Nocode')['ID CLIENTE'].apply(list).to_dict()
     
-    # Identificar las filas donde la razón es igual a 1 y el 'Puntaje_Del_Credito' es diferente de cero
-    condicion = (ratio == 1) & (DF_solicitud_credito['Puntaje_Del_Credito'] != 0)
+    # Actualizar la estructura para asegurar que no hay auto-referencias
+    for referidor, referidos in referidos_por_referidor.items():
+        if referidor in referidos:
+            referidos.remove(referidor)  # Eliminar auto-referencia si existe
+
+    print("Estructura para identificar referidos exitoso")
+
+    # Agregar columnas al DataFrame para análisis posterior
+    df['Num_referidos'] = df['ID CLIENTE'].apply(lambda x: len(referidos_por_referidor.get(x, [])))
+    df['Tiene_referidor'] = df['ID Referidor Nocode'].apply(lambda x: 'No' if x == 'No tiene' else 'Sí')
+    print("Columnas agregadas exitosamente")
+
+    #------------Referidos----------------
+
+    '''
+    - Si el 20% o más de los referidos están en mora, NINGUN REFERIDO SUMA NADA
+        - De lo contrario, por cada referido entre 800 y 1000, el score de referidor aumenta en 10%*(Score-800) (Pendiente definir si 10% está bien)
+
+    - Cualquier referido en mora (O con un puntaje inferior a 400, hay que probar los 2 casos) resta 10% del score del **referidor**
     
-    # Sumar el bonus al 'Puntaje_Del_Credito' donde la condición es verdadera
-    DF_solicitud_credito.loc[condicion, 'Puntaje_Del_Credito'] += bonus
-    
-    # Crear una nueva columna 'Bono_Aplicado' que indica si se aplicó el bono
-    DF_solicitud_credito['Bono_Aplicado'] = False  # Inicializar todos los valores como False
-    DF_solicitud_credito.loc[condicion, 'Bono_Aplicado'] = True  # Asignar True donde se aplicó el bono
-    
-    # Devolver el DataFrame actualizado
-    return DF_solicitud_credito
+    Si existe un referido perdido. Tanto el score del referido como del referidor son 0. Los demás referidos deberían restarleses el 50% de su score (Validar si de por si ya se están viendo afectados)
+
+    '''
+
+    #------------Referidor-----------------------
+
+    '''
+    Si mi referidor entra en mora (O tiene un puntaje menor o igual a X número) resta 10% del score del referido
+    '''
+
+    print(referidos_por_referidor)
+    return df
 
 
 def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value):
@@ -293,11 +358,14 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedi
     clientes_con_credito_perdido = clientes_con_credito_perdido.reset_index().rename(columns={'ID Cliente nocode': 'ID CLIENTE'})
     DF_contactos = DF_contactos.merge(clientes_con_credito_perdido, on='ID CLIENTE', how='left')
 
-    DF_contactos['puntaje_inicial'] = 500
+    DF_contactos = score_inicial(DF_contactos)
 
     # Cálculo del score final
     DF_contactos['Puntaje_Final'] = DF_contactos.apply(aplicar_calculo, axis=1)
 
+
+    DF_contactos, referidos_por_referidor = afectaciones_por_referidos(DF_contactos)
+    print(DF_contactos)
     return DF_contactos
 
 
@@ -333,8 +401,8 @@ def handler(event, context):
         nombre_archivo = "contactos_procesados.xlsx"
         nombre_archivo_2 = "creditos_procesados.xlsx"
         # Guarda el DataFrame en un archivo Excel en el directorio actual
-        # df_contactos_procesados.to_excel(nombre_archivo, index=False)
-        df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
+        df_contactos_procesados.to_excel(nombre_archivo, index=False)
+        # df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
         print(f"Procesamiento completado con {len(df_contactos_procesados)} registros.")
         print(df_contactos_procesados)
         return {

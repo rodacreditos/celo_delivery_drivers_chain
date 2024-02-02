@@ -226,7 +226,7 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     print("imprimiendo en transformar datos")
     print(DF_contactos['ID Referidor Nocode'].unique())
     print(DF_contactos['¿Referido RODA?'].unique())
-    DF_contactos['ID Referidor Nocode'] = pd.to_numeric(DF_contactos['ID Referidor Nocode'])
+    DF_contactos['ID Referidor Nocode'] = pd.to_numeric(DF_contactos['ID Referidor Nocode'], errors='coerce')
 
     DF_solicitud_credito['Días mora/atraso promedio'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso promedio'], errors='coerce')
     DF_solicitud_credito['Días mora/atraso acumulados'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso acumulados'], errors='coerce')
@@ -261,24 +261,40 @@ def score_inicial(df):
 
     return df
 
+def actualizar_referidos(df):
+    # Crear una columna nueva para almacenar los referidos como diccionarios
+    df['Referidos'] = None
+    
+    # Iterar sobre el DataFrame para actualizar cada fila con su correspondiente diccionario de referidos
+    for index, row in df.iterrows():
+        id_cliente = row['ID CLIENTE']
+        # Buscar todos los IDs de clientes que tienen este ID como referidor
+        referidos = df[df['ID Referidor Nocode'] == id_cliente]['ID CLIENTE'].tolist()
+        # Actualizar la columna 'Referidos' con el diccionario de referidos
+        df.at[index, 'Referidos'] = {id_cliente: referidos}
+    
+    return df
 
 def afectaciones_por_referidos(df):
-
+    
+    
     '''
     Here we are building social_score
 
     '''
 
     print("Entró a afectaciones")
-    # Cleaning
+
     df['¿Referido RODA?'] = df['¿Referido RODA?'].replace({'No se encuentra': 'No'})
     df['ID Referidor Nocode'] = df['ID Referidor Nocode'].fillna('No tiene')
     print("Cleaning exitoso")
 
-    # Crear estructura para identificar referidos correctamente
-   
-   
-   
+    # Aplicamos la función a cada fila del DataFrame
+    df = actualizar_referidos(df)
+    print("Proceso completado")
+    # Mostrar algunas filas del DataFrame para verificar los resultados
+    print(df[['ID CLIENTE', 'Referidos']].head())
+
     '''
     - Si el 20% o más de los referidos están en mora, NINGUN REFERIDO SUMA NADA
         - De lo contrario, por cada referido entre 800 y 1000, el score de referidor aumenta en 10%*(Score-800) (Pendiente definir si 10% está bien)
@@ -295,7 +311,6 @@ def afectaciones_por_referidos(df):
     Si mi referidor entra en mora (O tiene un puntaje menor o igual a X número) resta 10% del score del referido
     '''
 
-    print(referidos_por_referidor)
     return df
 
 
@@ -362,7 +377,6 @@ def run(token):
     DF_solicitud_credito, DF_contactos = obtener_datos(token)
     DF_contactos, DF_solicitud_credito = transformar_datos(DF_contactos, DF_solicitud_credito)
     DF_contactos = calcular_puntajes(DF_contactos, DF_solicitud_credito,limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value)
-    print(DF_solicitud_credito)
     return DF_contactos, DF_solicitud_credito
 
 

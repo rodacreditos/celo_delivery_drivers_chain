@@ -160,7 +160,7 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
             credit_record_id = credit['id']
             credit_fields = credit['fields']
             id_credit = int(credit_fields['ID CRÉDITO'])
-            client_record_id = credit_fields['ID Cliente'][0]
+            client_record_id = credit_fields['ID CLIENTE'][0]
             Investment = int(credit_fields['Inversión'])
             initial_debt = int(credit_fields['Deuda Inicial SUMA'])
             

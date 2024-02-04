@@ -157,10 +157,12 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
     # Iterate over the data and publish each row to Celo
     for credit in credit_records:
         try:
-            id_credit = int(credit['ID CRÉDITO'])
-            client_record_id = credit['ID Cliente'][0]
-            Investment = int(credit['Inversión'])
-            initial_debt = int(credit['Deuda Inicial SUMA'])
+            credit_record_id = credit['id']
+            credit_fields = credit['fields']
+            id_credit = int(credit_fields['ID CRÉDITO'])
+            client_record_id = credit_fields['ID Cliente'][0]
+            Investment = int(credit_fields['Inversión'])
+            initial_debt = int(credit_fields['Deuda Inicial SUMA'])
             
             disbursement_date = credit['Fecha desembolso corregida']
             disbursement_date = disbursement_date[:-1] if disbursement_date.endswith('Z') else disbursement_date
@@ -232,7 +234,7 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
                 break
 
             logger.info(f"    -> Transaction successfully sent: credit id {id_credit}, hash {tx_hash.hex()}")
-            set_credit_as_published(contacts_table, client_record_id, env)
+            set_credit_as_published(contacts_table, credit_record_id, env)
             count_published_routes += 1
 
             # Increment the nonce for subsequent transactions
@@ -284,7 +286,7 @@ def fetch_credits_from_airtable(credits_table: Airtable, env: str):
         fields=['ID CRÉDITO', 'ID CLIENTE', 'Inversión', 'Deuda Inicial SUMA', 'Fecha desembolso corregida', '¿Tiempo para el pago del crédito?',
                 'ClientCeloAddress', f'PublishedToCelo{env.capitalize()}']
         )
-    logger.info(f"    --> Fetched {len(credit_records)} contacts that has at least one GPD ID associated.")
+    logger.info(f"    --> Fetched {len(credit_records)} credits.")
     return credit_records
 
 

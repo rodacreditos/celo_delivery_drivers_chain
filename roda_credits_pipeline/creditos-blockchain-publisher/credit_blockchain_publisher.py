@@ -7,7 +7,7 @@ from airtable import Airtable
 from web3 import Web3, HTTPProvider, Account
 from web3.middleware import geth_poa_middleware
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
-from python_utilities.utils import validate_date, read_csv_from_s3, read_yaml_from_s3, read_json_from_s3, format_dashed_date, yesterday, logger, \
+from python_utilities.utils import validate_date, to_unix_timestamp, read_yaml_from_s3, read_json_from_s3, format_dashed_date, logger, \
     				setup_local_logger, list_s3_files, dict_to_json_s3, RODAAPP_BUCKET_PREFIX
 
 
@@ -43,7 +43,7 @@ def fetch_contract_info(environment: str):
     Returns:
     - tuple: Contains the contract address (str) and ABI (list) for route publishing.
     """
-    celo_contracts = read_json_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, f"credentials/roda_celo_contracts_{environment}.json"))
+    celo_contracts = read_json_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, f"credentials/roda_credits_contract_{environment}.json"))
     return celo_contracts['RODA_CREDIT_CONTRACT_ADDR'], celo_contracts['RODA_CREDIT_CONTRACT_ABI']
 
 
@@ -279,38 +279,10 @@ def set_credit_as_published(credits_table: Airtable, record_id: str, env: str):
 
 
 def handler(event: Dict[str, Any], context: Any) -> None:
-    """
-    The primary handler function for processing and publishing route data to the blockchain.
-
-    This function is designed for compatibility with AWS Lambda but also supports local execution or execution
-    within a Docker container. It processes Tribu data by publishing it to the blockchain and intelligently manages
-    execution time. It monitors for timeouts, ensuring there is sufficient time to save progress and avoid
-    republishing routes that have already been published. The function dynamically adjusts to prevent execution
-    from exceeding a specified timeout, allowing for efficient retries and progress continuation.
-
-    Parameters:
-    - event (Dict[str, Any]): A dictionary containing the execution parameters. Key parameters include
-      'environment' for specifying the execution context (staging or production, optional, defaults to staging), 'processing_date' for the
-      target date of the data to process (optional, defaults to yesterday date), and 'timeout' for the maximum allowed execution time in seconds
-      (optional, defaults to 900 seconds if not provided).
-    - context (Any): Context information provided by AWS Lambda. This parameter is not used within the function
-      but is required for AWS Lambda compatibility.
-
-    Returns:
-    - None: The function does not return a value but logs its progress and outcomes.
-
-    Note:
-    - For local or Docker execution, the function parses command-line arguments to populate the `event` dictionary.
-      The AWS Lambda execution environment provides the `event` and `context` parameters directly.
-    - The 'timeout' parameter in the `event` dictionary controls how long the function will attempt to publish routes
-      before stopping to save progress. This mechanism ensures that the function can halt gracefully before reaching
-      the Lambda execution time limit or other defined timeouts.
-    """
     logger.setLevel(logging.INFO)
     logger.info("STARTING: Blockchain Publisher task.")
     
     environment = event.get("environment", "staging")
-    timeout = int(event.get("timeout", 900))
 
     logger.info(f"Parameters: environment: {environment}")
 
@@ -324,7 +296,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
 
     credit_records = fetch_credits_from_airtable(credits_table, environment)
 
-    all_success, number_published_records = publish_to_celo(web3, credit_contract_addr, credit_contract_abi, credit_records, contacts_table, mnemonic, timeout)
+    all_success, number_published_records = publish_to_celo(web3, credit_contract_addr, credit_contract_abi, credit_records, contacts_table, mnemonic)
 
     if all_success:
         logger.info("FINISHED SUCCESSFULLY: blockchain publisher task")
@@ -347,22 +319,8 @@ if __name__ == "__main__":
         bootstrap.run(handler, '/var/runtime/bootstrap')
     else:
         parser = argparse.ArgumentParser(description=__doc__)
-        parser.add_argument("-d", "--date", help="date of the execution of this script", type=validate_date, required=False)
         parser.add_argument("-e", "--environment", help="Given the environment (staging or production)", choices=['staging', 'production'], required=True)
-        parser.add_argument(
-            "-t", "--timeout",
-            type=int,  # or float if you need fractional seconds
-            help="Sets the maximum time (in seconds) for the function to run. "
-                "If this timeout is reached, the function will attempt to save the current progress in s3 before stopping. "
-                "Default is 900 seconds.",
-            default=900,
-            required=False
-        )
 
         args = parser.parse_args()
         setup_local_logger() # when it does not have env vars from aws, it means that this script is running locally 
-        if args.date:
-            handler(dict(processing_date=format_dashed_date(args.date),
-                            environment=args.environment, timeout=args.timeout), "dockerlocal")
-        else:
-            handler(dict(environment=args.environment, timeout=args.timeout), "dockerlocal")
+        handler(dict(environment=args.environment), "dockerlocal")

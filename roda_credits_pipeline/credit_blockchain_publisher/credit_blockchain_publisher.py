@@ -138,7 +138,7 @@ def parse_days_from_credit_repayment(days_from_credit_repayment: str) -> int:
         raise ValueError("No digits found in input string.")
 
 
-def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table, mnemonic, timeout, env):
+def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table, mnemonic, env):
     logger.info(f"About to publish {len(credit_records)} transactions...")
     start_time = time.time()
     contract = web3.eth.contract(address=contract_address, abi=abi)
@@ -281,7 +281,7 @@ def fetch_credits_from_airtable(credits_table: Airtable, env: str):
     logger.info("Fetching creditos from airtable (view CREDIT_TO_CELO_PIPELINE_VIEW)...")
     credit_records = credits_table.get_all(
         view='CREDIT_TO_CELO_PIPELINE_VIEW', 
-        fields=['ID CRÉDITO', 'ID Cliente', 'Inversión', 'Deuda Inicial SUMA', 'Fecha desembolso corregida', '¿Tiempo para el pago del crédito?',
+        fields=['ID CRÉDITO', 'ID CLIENTE', 'Inversión', 'Deuda Inicial SUMA', 'Fecha desembolso corregida', '¿Tiempo para el pago del crédito?',
                 'ClientCeloAddress', f'PublishedToCelo{env.capitalize()}']
         )
     logger.info(f"    --> Fetched {len(credit_records)} contacts that has at least one GPD ID associated.")
@@ -314,7 +314,8 @@ def handler(event: Dict[str, Any], context: Any) -> None:
 
     credit_records = fetch_credits_from_airtable(credits_table, environment)
 
-    all_success, number_published_records = publish_to_celo(web3, credit_contract_addr, credit_contract_abi, credit_records, contacts_table, mnemonic)
+    all_success, number_published_records = publish_to_celo(web3, credit_contract_addr, credit_contract_abi, credit_records,
+                                                            contacts_table, mnemonic, environment)
 
     if all_success:
         logger.info("FINISHED SUCCESSFULLY: blockchain publisher task")

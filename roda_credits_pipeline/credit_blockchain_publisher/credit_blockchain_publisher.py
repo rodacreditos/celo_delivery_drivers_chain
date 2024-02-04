@@ -169,7 +169,7 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
             disbursement_date = to_unix_timestamp(disbursement_date, "%Y-%m-%dT%H:%M:%S.%f")
 
             time_for_credit_repayment = int(parse_days_from_credit_repayment(credit_fields['¿Tiempo para el pago del crédito?']))
-            client_celo_address = credit_fields.get('ClientCeloAddress')
+            client_celo_address = credit_fields.get('ClientCeloAddress', [None])[0]
             is_published_to_celo = credit_fields.get(f'PublishedToCelo{env.capitalize()}', False)
 
             ### Debugging

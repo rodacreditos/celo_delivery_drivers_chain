@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import re
 import time
 from typing import Dict, Any
 from airtable import Airtable
@@ -114,6 +115,27 @@ def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=300, m
         time.sleep(poll_interval)
 
 
+def parse_days_from_credit_repayment(days_from_credit_repayment: str) -> int:
+    """
+    Extracts the leading integer number from a string formatted like '45 días (6 semanas)'
+    and returns the number of days as an int.
+    
+    Parameters:
+    - days_from_credit_repayment (str): The input string from which to extract the number of days.
+    
+    Returns:
+    - int: The extracted number of days as an integer.
+    """
+    # Use regular expression to find the first sequence of digits in the string
+    match = re.search(r'\d+', days_from_credit_repayment)
+    if match:
+        # Convert the matched string to an integer and return it
+        return int(match.group(0))
+    else:
+        # If no digits were found, you might want to handle this case, e.g., raise an error
+        raise ValueError("No digits found in input string.")
+
+
 def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table, mnemonic, timeout, env):
     logger.info(f"About to publish {len(credit_records)} transactions...")
     start_time = time.time()
@@ -137,10 +159,18 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
             client_record_id = credit['ID Cliente'][0]
             Investment = int(credit['Inversión'])
             initial_debt = int(credit['Deuda Inicial SUMA'])
-            disbursement_date = to_unix_timestamp(credit['Fecha desembolso corregida'])
+            
+            disbursement_date = credit['Fecha desembolso corregida']
+            disbursement_date = disbursement_date[:-1] if disbursement_date.endswith('Z') else disbursement_date
+            disbursement_date = to_unix_timestamp(disbursement_date, "%Y-%m-%dT%H:%M:%S.%f")
+
             time_for_credit_repayment = int(parse_days_from_credit_repayment(credit['¿Tiempo para el pago del crédito?']))
             client_celo_address = credit['ClientCeloAddress',]
             is_published_to_celo = credit[f'PublishedToCelo{env.capitalize()}']
+
+            ### Debugging
+            print(id_credit, client_record_id, Investment, initial_debt, disbursement_date, time_for_credit_repayment, client_celo_address, is_published_to_celo)
+            continue
 
             if not client_celo_address:
                 client_id = contacts_table.get(client_record_id)['fields'].get('ID CLIENTE')
@@ -153,20 +183,6 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
             if is_published_to_celo:
                 logger.info(f"    -> Credit id {id_credit} is already published. Skipping re-publishing.")
                 continue
-
-            # Check if the elapsed time has exceeded 90% of the specified timeout duration.
-            # If so, stop publishing routes. This precaution ensures that the system has
-            # enough time to save progress and perform any necessary cleanup operations
-            # before the total timeout period is reached.
-            current_time = time.time()
-            elapsed_time = current_time - start_time
-            if elapsed_time  > timeout * 0.9:
-                logger.error(
-                    f"    -> Approaching timeout limit ({timeout} seconds). Elapsed time: {elapsed_time:.2f} seconds. "
-                    "Stopping credit publishing as a precaution."
-                )
-                all_success = False
-                break
 
             # Estimate gas for the transaction
             estimated_gas = contract.functions.CreditIssued(

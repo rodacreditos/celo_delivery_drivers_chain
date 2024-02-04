@@ -185,13 +185,13 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
                 continue
 
             # Estimate gas for the transaction
-            estimated_gas = contract.functions.CreditIssued(
+            estimated_gas = contract.functions.issueCredit(
                                 to=client_celo_address,
-                                tokenId=id_credit,
-                                principal=Investment,
+                                creditId=id_credit,
+                                _principal=Investment,
                                 totalRepaymentAmount=initial_debt,
-                                issuanceDate=disbursement_date,
-                                creditTerm=time_for_credit_repayment
+                                _issuanceDate=disbursement_date,
+                                _creditTerm=time_for_credit_repayment
                             ).estimate_gas({'from': account.address})
 
             gas_price = web3.eth.gas_price

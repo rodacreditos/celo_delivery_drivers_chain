@@ -1,6 +1,9 @@
 # Use AWS Lambda Python base image
 FROM public.ecr.aws/lambda/python:3.11
 
+# Install GCC
+RUN yum install -y gcc-c++
+
 # Copy requirements file
 COPY roda_credits_pipeline/credit_blockchain_publisher/requirements.txt ./
 
@@ -9,7 +12,7 @@ COPY roda_credits_pipeline/credit_blockchain_publisher/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy function code
-COPY tribu_datapipeline/lambda_blockchain_publisher/credit_blockchain_publisher.py ./ 
+COPY roda_credits_pipeline/credit_blockchain_publisher/credit_blockchain_publisher.py ./ 
 COPY python_utilities/utils.py ./python_utilities/
 
 # Set the CMD to your handler (could also be done as a parameter override outside of the Dockerfile)

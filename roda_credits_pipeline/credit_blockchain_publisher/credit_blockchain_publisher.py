@@ -8,8 +8,8 @@ from airtable import Airtable
 from web3 import Web3, HTTPProvider, Account
 from web3.middleware import geth_poa_middleware
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
-from python_utilities.utils import validate_date, to_unix_timestamp, read_yaml_from_s3, read_json_from_s3, format_dashed_date, logger, \
-    				setup_local_logger, list_s3_files, dict_to_json_s3, RODAAPP_BUCKET_PREFIX
+from python_utilities.utils import to_unix_timestamp, read_yaml_from_s3, read_json_from_s3, logger, \
+    				setup_local_logger, RODAAPP_BUCKET_PREFIX
 
 
 def fetch_celo_credentials(environment: str):
@@ -65,11 +65,13 @@ def connect_to_blockchain(provider_url: str):
     web3.middleware_onion.inject(geth_poa_middleware, layer=0)
     return web3
 
+
 def fetch_airtable_credentials():
     logger.info("Fetching Airtable credentials...")
     airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
     airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
     return airtable_credentials['BASE_ID'],  airtable_credentials['PERSONAL_ACCESS_TOKEN']
+
 
 def wait_for_transaction_receipt(web3, tx_hash, poll_interval=10, timeout=300, max_attempts=5):
     """

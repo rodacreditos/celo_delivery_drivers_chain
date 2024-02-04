@@ -172,10 +172,6 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
             client_celo_address = credit_fields.get('ClientCeloAddress', [None])[0]
             is_published_to_celo = credit_fields.get(f'PublishedToCelo{env.capitalize()}', False)
 
-            ### Debugging
-            print(id_credit, client_record_id, Investment, initial_debt, disbursement_date, time_for_credit_repayment, client_celo_address, is_published_to_celo)
-            continue
-
             if not client_celo_address:
                 client_id = contacts_table.get(client_record_id)['fields'].get('ID CLIENTE')
                 client_celo_address = generate_celo_address(mnemonic, client_id)

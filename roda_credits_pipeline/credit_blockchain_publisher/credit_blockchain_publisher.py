@@ -157,6 +157,7 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
     # Iterate over the data and publish each row to Celo
     for credit in credit_records:
         try:
+            logger.info(credit)
             credit_record_id = credit['id']
             credit_fields = credit['fields']
             id_credit = int(credit_fields['ID CRÉDITO'])
@@ -247,9 +248,9 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
                 count_published_routes += 1
                 continue
             else:
-                logger.error(f"    -> Error publishing credit id {id_credit}: {e}")
+                logger.error(f"    -> Error publishing credit id {id_credit}")
                 all_success = False
-                break
+                raise e
 
     return all_success, count_published_routes
 
@@ -279,12 +280,14 @@ def generate_celo_address(mnemonic, index=0):
     return bip44_addr_ctx.PublicKey().ToAddress()
 
 
-def fetch_credits_from_airtable(credits_table: Airtable, env: str):
+def fetch_non_published_credits_from_airtable(credits_table: Airtable, env: str):
     logger.info("Fetching creditos from airtable (view CREDIT_TO_CELO_PIPELINE_VIEW)...")
+    published_to_celo_field_name = f'PublishedToCelo{env.capitalize()}'
     credit_records = credits_table.get_all(
         view='CREDIT_TO_CELO_PIPELINE_VIEW', 
         fields=['ID CRÉDITO', 'ID CLIENTE', 'Inversión', 'Deuda Inicial SUMA', 'Fecha desembolso corregida', '¿Tiempo para el pago del crédito?',
-                'ClientCeloAddress', f'PublishedToCelo{env.capitalize()}']
+                'ClientCeloAddress', published_to_celo_field_name],
+        formula=f'{{{published_to_celo_field_name}}}=0'
         )
     logger.info(f"    --> Fetched {len(credit_records)} credits.")
     return credit_records
@@ -314,7 +317,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     credits_table = Airtable(base_id, "Creditos", access_token) 
     contacts_table = Airtable(base_id, "Contactos", access_token)
 
-    credit_records = fetch_credits_from_airtable(credits_table, environment)
+    credit_records = fetch_non_published_credits_from_airtable(credits_table, environment)
 
     all_success, number_published_records = publish_to_celo(web3, credit_contract_addr, credit_contract_abi, credit_records,
                                                             contacts_table, mnemonic, environment)

@@ -127,6 +127,7 @@ resource "aws_iam_role_policy" "sfn_policy" {
           aws_lambda_function.gps_to_celo_map_sync.arn,
           aws_lambda_function.tribu_extraction.arn,
           aws_lambda_function.tribu_processing.arn,
+          aws_lambda_function.credit_blockchain_publisher.arn,
           aws_lambda_function.publish_to_blockchain.arn
         ]
       }

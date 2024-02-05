@@ -140,7 +140,6 @@ def parse_days_from_credit_repayment(days_from_credit_repayment: str) -> int:
 
 def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table, mnemonic, env):
     logger.info(f"About to publish {len(credit_records)} transactions...")
-    start_time = time.time()
     contract = web3.eth.contract(address=contract_address, abi=abi)
 
 

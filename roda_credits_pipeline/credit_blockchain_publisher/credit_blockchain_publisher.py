@@ -264,13 +264,13 @@ def publish_to_celo(
             is_published_to_celo = credit_fields.get(f'PublishedToCelo{env.capitalize()}', False)
 
             if not client_celo_address:
-                if credit_record_id not in cache_celo_address:
+                if client_record_id not in cache_celo_address:
                     client_id = contacts_table.get(client_record_id)['fields'].get('ID CLIENTE')
                     client_celo_address = generate_celo_address(mnemonic, client_id)
                     update_client_celo_address(contacts_table, client_record_id, client_celo_address)
-                    cache_celo_address[credit_record_id] = client_celo_address
+                    cache_celo_address[client_record_id] = client_celo_address
                 else:
-                    client_celo_address = cache_celo_address[credit_record_id]
+                    client_celo_address = cache_celo_address[client_record_id]
 
             logger.info(f"Publishing credit id {id_credit}:")
 

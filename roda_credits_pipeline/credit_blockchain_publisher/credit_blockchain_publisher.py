@@ -1,9 +1,36 @@
+"""
+credit_blockchain_publisher.py
+
+This module contains functionalities for fetching credit records from Airtable, publishing them to the Celo blockchain,
+and updating the publication status back in Airtable. It is designed to be used within AWS Lambda, facilitating automated,
+secure, and reliable publishing of credit transactions to the blockchain.
+
+Features include:
+- Fetching credentials and smart contract information for interacting with the Celo blockchain.
+- Establishing a Web3 connection to the blockchain network.
+- Retrieving non-published credit records from Airtable.
+- Publishing credit records to the blockchain and marking them as published in Airtable.
+- Handling retries and failures gracefully, ensuring idempotency and robustness in operation.
+
+Usage:
+The module is intended to be deployed as an AWS Lambda function, triggered by events that require the publishing of credit
+records to the blockchain. It can also be executed in local or Docker environments for testing and development purposes.
+
+Dependencies:
+- Web3.py for blockchain interactions.
+- Airtable Python Wrapper for working with Airtable APIs.
+- BIP utilities for address generation and transaction signing.
+- Custom utilities for configuration and logging.
+
+Note:
+Ensure proper configuration of environment variables and AWS IAM permissions for access to S3, Airtable, and the blockchain network.
+"""
 import argparse
 import logging
 import os
 import re
 import time
-from typing import Dict, Any
+from typing import List, Tuple, Dict, Any
 from airtable import Airtable
 from web3 import Web3, HTTPProvider, Account
 from web3.middleware import geth_poa_middleware
@@ -66,7 +93,28 @@ def connect_to_blockchain(provider_url: str):
     return web3
 
 
-def fetch_airtable_credentials():
+def fetch_airtable_credentials() -> Tuple[str, str]:
+    """
+    Fetches Airtable credentials required for API access.
+
+    This function retrieves the Base ID and Personal Access Token from a YAML configuration file stored in S3.
+    These credentials are essential for performing API operations on Airtable tables, such as reading or updating records.
+    The credentials must be securely stored and accessed, typically using AWS S3 services for secure storage and retrieval.
+
+    Returns:
+    Tuple[str, str]: A tuple containing two elements:
+        - Base ID (str): The unique identifier for the Airtable Base, used to specify which database to access.
+        - Personal Access Token (str): The API key required to authenticate and authorize API requests to Airtable.
+
+    Raises:
+    - FileNotFoundError: If the credentials file cannot be found in the specified path.
+    - KeyError: If the expected keys ('BASE_ID' and 'PERSONAL_ACCESS_TOKEN') are not present in the retrieved YAML data.
+    - Exception: For any other issues encountered during the retrieval and parsing of the credentials.
+
+    Note:
+    Ensure the S3 bucket and file path are correctly configured and accessible by the AWS Lambda function or the environment
+    where this script runs. Proper IAM permissions should be in place to allow access to the S3 resource.
+    """
     logger.info("Fetching Airtable credentials...")
     airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
     airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
@@ -138,7 +186,50 @@ def parse_days_from_credit_repayment(days_from_credit_repayment: str) -> int:
         raise ValueError("No digits found in input string.")
 
 
-def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table, mnemonic, env):
+def publish_to_celo(
+    web3: Web3, 
+    contract_address: str, 
+    abi: List[Dict[str, Any]], 
+    credit_records: List[Dict[str, Any]], 
+    contacts_table: Airtable, 
+    mnemonic: str, 
+    env: str
+) -> Tuple[bool, int]:
+    """
+    Publishes credit records to the Celo blockchain by creating transactions for each credit.
+
+    This function iterates through a list of credit records, constructs and signs transactions using the provided
+    mnemonic, and publishes each transaction to the Celo blockchain. It handles the derivation of Celo addresses,
+    calculates necessary transaction parameters (e.g., gas), and ensures transactions are successfully mined.
+    Additionally, it updates the publication status in Airtable to prevent re-publishing of already processed credits.
+
+    Parameters:
+    - web3 (Web3): An instance of the Web3 class, connected to the Celo blockchain.
+    - contract_address (str): The address of the smart contract on the Celo blockchain to interact with.
+    - abi (List[Dict[str, Any]]): The ABI (Application Binary Interface) of the contract, defining how to interact with it.
+    - credit_records (List[Dict[str, Any]]): A list of dictionaries, each representing a credit record to be published.
+    - contacts_table (Airtable): An instance of the Airtable class for accessing the contacts table.
+    - mnemonic (str): The mnemonic phrase used to derive blockchain addresses and sign transactions.
+    - env (str): The environment context ('staging' or 'production') which affects the publication process,
+                 particularly in how the function tracks whether a credit has been published.
+
+    Returns:
+    Tuple[bool, int]: A tuple containing two elements:
+        - all_success (bool): Indicates whether all credits were successfully published. True if all transactions
+                              were successful, False otherwise.
+        - count_published_routes (int): The number of credits successfully published to the blockchain.
+
+    Raises:
+    - Exception: If an error occurs during the transaction creation, signing, or submission process, an exception
+                 is raised with a detailed message about the failure.
+
+    Notes:
+    - The function uses the 'PublishedToCeloStaging' or 'PublishedToCeloProduction' fields in Airtable to track
+      publication status, updating these fields as credits are processed to ensure idempotency and facilitate
+      error recovery.
+    - Transactions are constructed and signed using the account derived from the provided mnemonic. This requires
+      enabling unaudited HD wallet features in the Web3.py library.
+    """
     logger.info(f"About to publish {len(credit_records)} transactions...")
     contract = web3.eth.contract(address=contract_address, abi=abi)
 
@@ -281,6 +372,23 @@ def generate_celo_address(mnemonic, index=0):
 
 
 def fetch_non_published_credits_from_airtable(credits_table: Airtable, env: str):
+    """
+    Retrieves a list of credit records from Airtable that have not yet been published to the Celo blockchain.
+
+    This function queries the Airtable credits table to find all records that are marked as not published
+    according to the 'PublishedToCeloStaging' or 'PublishedToCeloProduction' column, depending on the
+    specified environment. It is used to identify credits that need to be processed and published to Celo,
+    supporting the workflow of ensuring all relevant credits are eventually pushed to the blockchain.
+
+    Parameters:
+    - credits_table (Airtable): An instance of the Airtable class, configured to interact with the credits table.
+    - env (str): The environment context ('staging' or 'production') which influences the filter criteria
+                 for fetching non-published credits.
+
+    Returns:
+    list[dict]: A list of credit records that have not been marked as published in the specified environment.
+                Each record is represented as a dictionary.
+    """
     logger.info("Fetching creditos from airtable (view CREDIT_TO_CELO_PIPELINE_VIEW)...")
     published_to_celo_field_name = f'PublishedToCelo{env.capitalize()}'
     credit_records = credits_table.get_all(
@@ -294,14 +402,77 @@ def fetch_non_published_credits_from_airtable(credits_table: Airtable, env: str)
 
 
 def update_client_celo_address(contacts_table: Airtable, record_id: str, celo_address: str):
+    """
+    Updates a client's Celo address in the Airtable contacts table.
+
+    This function is responsible for updating the 'Celo Address' field of a specific contact record, identified
+    by its record ID, with a new Celo address. This operation is crucial for ensuring that the contact information
+    is current and accurate, reflecting the latest Celo address that should be used for transactions.
+
+    Parameters:
+    - contacts_table (Airtable): An instance of the Airtable class, configured to interact with the contacts table.
+    - record_id (str): The unique identifier of the contact record to update in the Airtable.
+    - celo_address (str): The new Celo blockchain address to be associated with the contact.
+
+    Returns:
+    dict: The response from the Airtable API after updating the record, which includes the updated fields.
+    """
     return contacts_table.update(record_id, {'Celo Address': celo_address})
 
 
 def set_credit_as_published(credits_table: Airtable, record_id: str, env: str):
+    """
+    Marks a credit record in Airtable as published to the Celo blockchain by updating the appropriate column
+    based on the execution environment.
+
+    This function targets a specific record, identified by its record ID, and updates its status to indicate
+    that it has been successfully published. This is achieved by setting the 'PublishedToCeloStaging' or
+    'PublishedToCeloProduction' column to True, depending on whether the function is operating in a staging
+    or production environment.
+
+    Parameters:
+    - credits_table (Airtable): An instance of the Airtable class, configured to interact with the credits table.
+    - record_id (str): The unique identifier of the credit record to update in the Airtable.
+    - env (str): The environment context ('staging' or 'production') that dictates which column to update.
+
+    Returns:
+    dict: The response from the Airtable API after updating the record, which includes the updated fields.
+    """
     return credits_table.update(record_id, {f'PublishedToCelo{env.capitalize()}': True})
 
 
 def handler(event: Dict[str, Any], context: Any) -> None:
+    """
+    The entry point for the AWS Lambda function that orchestrates the process of publishing non-published credits
+    from Airtable to the Celo blockchain. It ensures idempotency by tracking the publication status of each credit
+    in Airtable, allowing for safe retries without duplicating publications.
+
+    This function initializes the necessary configurations, establishes connections to external resources (Airtable,
+    Celo blockchain), fetches credits that have not been published to Celo, and attempts to publish each credit
+    individually. It intelligently resumes operations by skipping credits already marked as published in Airtable,
+    leveraging the 'PublishedToCeloStaging' and 'PublishedToCeloProduction' columns. This mechanism ensures that
+    the function can be retried safely after failures, continuing from the last unpublished credit.
+
+    Parameters:
+    - event (Dict[str, Any]): A dictionary containing event data that the function uses to execute. It should include:
+        - "environment": A string specifying the execution environment ("staging" or "production"). This determines
+                         which credentials and configurations are used for connections to external services.
+    - context (Any): The runtime information provided by AWS Lambda, which is not used in this function but is required
+                     by the AWS Lambda handler signature.
+
+    Returns:
+    None. The function logs its progress and results, reporting any failures directly through logging mechanisms.
+
+    Raises:
+    - Exception: If not all credits could be successfully published, an exception is raised with details about
+                 the number of credits attempted and the number of successes.
+
+    Note:
+    This function is designed to be triggered by AWS Lambda events, making it suitable for automated tasks within
+    AWS infrastructure, such as scheduled publishing of credits or reacting to specific triggers in AWS services.
+    Its resilience to partial failures and ability to continue from the point of interruption make it particularly
+    effective for operations that may encounter transient issues or require retrying until complete success is achieved.
+    """
     logger.setLevel(logging.INFO)
     logger.info("STARTING: Blockchain Publisher task.")
     
@@ -334,7 +505,7 @@ if __name__ == "__main__":
     Main entry point for script execution.
 
     Supports running in a Docker container, AWS Lambda, or directly via CLI.
-    Parses command-line arguments for dataset type and optional processing date.
+    Parses command-line arguments for environment is optional, it dafaults to staging.
     Executes the handler function with the appropriate parameters.
     """
     if 'AWS_LAMBDA_RUNTIME_API' in os.environ:

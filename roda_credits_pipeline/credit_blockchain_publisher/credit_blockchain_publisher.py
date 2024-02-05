@@ -244,6 +244,7 @@ def publish_to_celo(web3, contract_address, abi, credit_records, contacts_table,
             error_message = str(e)
             if "ERC721: token already minted" in error_message:
                 logger.info(f"    -> Token already minted for credit id {id_credit}. Continuing with next transaction.")
+                set_credit_as_published(contacts_table, credit_record_id, env)
                 count_published_routes += 1
                 continue
             else:

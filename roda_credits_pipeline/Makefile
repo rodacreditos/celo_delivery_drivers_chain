@@ -13,6 +13,6 @@ run_credit_blockchain_publisher:
 		-i --entrypoint python rodaapp:credit_blockchain_publisher \
 		credit_blockchain_publisher.py --environment staging
 
-deploy_credit_blockchain_publisher: docker_login
+deploy_credit_blockchain_publisher_docker_image: docker_login
 	docker tag rodaapp:credit_blockchain_publisher $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:credit_blockchain_publisher
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:credit_blockchain_publisher

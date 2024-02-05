@@ -224,8 +224,6 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     DF_contactos['Promedio monto créditos'] = DF_contactos['Promedio monto créditos'].apply(replace_dict_with_empty)
     DF_contactos['Promedio monto créditos'] = pd.to_numeric(DF_contactos['Promedio monto créditos'])
     print("imprimiendo en transformar datos")
-    print(DF_contactos['ID Referidor Nocode'].unique())
-    print(DF_contactos['¿Referido RODA?'].unique())
     DF_contactos['ID Referidor Nocode'] = pd.to_numeric(DF_contactos['ID Referidor Nocode'], errors='coerce')
 
     DF_solicitud_credito['Días mora/atraso promedio'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso promedio'], errors='coerce')
@@ -234,11 +232,12 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     DF_solicitud_credito['# Acuerdos FECHA cumplido copy'] = pd.to_numeric(DF_solicitud_credito['# Acuerdos FECHA cumplido copy'])
     DF_solicitud_credito['Cantidad acuerdos'] = pd.to_numeric(DF_solicitud_credito['Cantidad acuerdos'])
     
-    #print(DF_solicitud_credito.loc[1298, 'Fecha desembolso'])
+    print(DF_solicitud_credito.loc[1298, ['Fecha desembolso', 'ID CRÉDITO']])
+
     #print(DF_solicitud_credito['Fecha desembolso'].apply(type).value_counts())
 
-    #DF_solicitud_credito['Fecha desembolso'] = pd.to_datetime(DF_solicitud_credito['Fecha desembolso'], errors='coerce', format='%d/%m/%Y') # Ajusta el formato según sea necesario
-    #DF_solicitud_credito['Días de atraso'] = pd.to_numeric(DF_solicitud_credito['Días de atraso'])
+    DF_solicitud_credito['Fecha desembolso'] = pd.to_datetime(DF_solicitud_credito['Fecha desembolso'], errors='coerce', format='%d/%m/%Y') # Ajusta el formato según sea necesario
+    DF_solicitud_credito['Días de atraso'] = pd.to_numeric(DF_solicitud_credito['Días de atraso'], errors= 'coerce')
 
 
     # Filtrado de DataFrames
@@ -275,11 +274,30 @@ def actualizar_referidos(df):
     # Iterar sobre el DataFrame para actualizar cada fila con su correspondiente diccionario de referidos
     for index, row in df.iterrows():
         id_cliente = row['ID CLIENTE']
-        # Buscar todos los IDs de clientes que tienen este ID como referidor
-        referidos = df[df['ID Referidor Nocode'] == id_cliente]['ID CLIENTE'].tolist()
+        # Buscar todos los referidos que tienen este ID como referidor
+        referidos_df = df[df['ID Referidor Nocode'] == id_cliente]
+        
+        # Crear un diccionario para almacenar la información de cada referido
+        referidos_info = {}
+        for _, referido_row in referidos_df.iterrows():
+            # Extraer la información requerida de cada referido
+            id_referido = referido_row['ID CLIENTE']
+            creditos_proceso = referido_row['Créditos en Proceso']
+            ultimo_dias_atraso = referido_row['Último Días de Atraso']
+            ultimo_id_credito = referido_row['Último ID CRÉDITO']
+            ultimo_tiene_credito_perdido = referido_row['Tiene Credito Perdido']
+            
+            # Almacenar la información en el diccionario con el ID del referido como clave
+            referidos_info[id_referido] = {
+                'Créditos en Proceso': creditos_proceso,
+                'Último Días de Atraso': ultimo_dias_atraso,
+                'Último ID CRÉDITO': ultimo_id_credito,
+                'Crédito Perdido' : ultimo_tiene_credito_perdido
+            }
+        
         # Actualizar la columna 'Referidos' con el diccionario de referidos
-        df.at[index, 'Referidos'] = {id_cliente: referidos}
-    
+        df.at[index, 'Referidos'] = referidos_info
+
     return df
 
 # Creación de columna en DF_Contactos que me diga si tiene o no créditos en proceso: VERDADERO y FALSO
@@ -459,8 +477,8 @@ def handler(event, context):
         nombre_archivo = "contactos_procesados.xlsx"
         nombre_archivo_2 = "creditos_procesados.xlsx"
         # Guarda el DataFrame en un archivo Excel en el directorio actual
-        # df_contactos_procesados.to_excel(nombre_archivo, index=False)
-        # df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
+        df_contactos_procesados.to_excel(nombre_archivo, index=False)
+        df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
         print(f"Procesamiento completado con {len(df_contactos_procesados)} registros.")
         print(df_contactos_procesados)
         return {

@@ -7,7 +7,12 @@ sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba
 from api_airtable import get_table_Airtable
 from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
 
-def actualizar_referidos(df):
+
+INCREMENTO_POR_REFERIDO = 0.1  # 10% de incremento por cada referido que cumpla la condición
+
+
+
+def buscar_info_referidos(df):
     # Crear una columna nueva para almacenar los referidos como diccionarios
     df['Referidos'] = None
     
@@ -26,22 +31,21 @@ def actualizar_referidos(df):
             ultimo_dias_atraso = referido_row['Último Días de Atraso']
             ultimo_id_credito = referido_row['Último ID CRÉDITO']
             ultimo_tiene_credito_perdido = referido_row['Tiene Credito Perdido']
+            ultimo_puntaje = referido_row['Puntaje_Final']
             
             # Almacenar la información en el diccionario con el ID del referido como clave
             referidos_info[id_referido] = {
                 'Créditos en Proceso': creditos_proceso,
                 'Último Días de Atraso': ultimo_dias_atraso,
                 'Último ID CRÉDITO': ultimo_id_credito,
-                'Crédito Perdido' : ultimo_tiene_credito_perdido
+                'Crédito Perdido' : ultimo_tiene_credito_perdido,
+                'Puntaje' : ultimo_puntaje
             }
         
         # Actualizar la columna 'Referidos' con el diccionario de referidos
         df.at[index, 'Referidos'] = referidos_info
 
     return df
-
-# Creación de columna en DF_Contactos que me diga si tiene o no créditos en proceso: VERDADERO y FALSO
-# Necesito añadir una condición que me diga si el referido tiene creditos EN PROCESO, sisi que me traiga la información de días_de_atraso del último crédito en proceso, si no que me retorne "na" en dias_de_atraso
 
 def validacion_creditos_en_proceso(df_contacto, df_credito): # PENDIENTE VALIDAR
 
@@ -50,37 +54,74 @@ def validacion_creditos_en_proceso(df_contacto, df_credito): # PENDIENTE VALIDAR
     
 
     '''
-    # Filtramos df_credito para obtener solo aquellos créditos que están EN PROCESO
     df_credito_en_proceso = df_credito[df_credito['ESTADO'] == 'EN PROCESO']
-    
-    # Agrupamos por 'ID Cliente nocode' y obtenemos el último crédito en proceso por fecha (asumiendo que existe una columna de fecha)
     ultimo_credito_por_cliente = df_credito_en_proceso.sort_values(by='Fecha desembolso', ascending=False).drop_duplicates('ID Cliente nocode')
-    
-    # Creamos un diccionario para mapear ID Cliente a VERDADERO/FALSO si tiene créditos en proceso
+
     tiene_credito_en_proceso = df_credito_en_proceso['ID Cliente nocode'].unique()
     df_contacto['Créditos en Proceso'] = df_contacto['ID CLIENTE'].apply(lambda x: 'VERDADERO' if x in tiene_credito_en_proceso else 'FALSO')
-    
-    # Creamos un diccionario para mapear ID Cliente a su último 'Días de atraso' y 'ID CRÉDITO'
+
     dias_atraso_dict = ultimo_credito_por_cliente.set_index('ID Cliente nocode')['Días de atraso'].to_dict()
     id_credito_dict = ultimo_credito_por_cliente.set_index('ID Cliente nocode')['ID CRÉDITO'].to_dict()
-    
-    # Aplicamos el mapeo para crear las nuevas columnas
-    df_contacto['Último Días de Atraso'] = df_contacto['ID CLIENTE'].map(dias_atraso_dict).fillna('N/A')
-    df_contacto['Último ID CRÉDITO'] = df_contacto['ID CLIENTE'].map(id_credito_dict).fillna('N/A')
-    
-    # Condición para llenar las nuevas columnas solo si 'Créditos en Proceso' es VERDADERO
-    df_contacto['Último Días de Atraso'] = df_contacto.apply(lambda x: x['Último Días de Atraso'] if x['Créditos en Proceso'] == 'VERDADERO' else 'N/A', axis=1)
-    df_contacto['Último ID CRÉDITO'] = df_contacto.apply(lambda x: x['Último ID CRÉDITO'] if x['Créditos en Proceso'] == 'VERDADERO' else 'N/A', axis=1)
-    
+
+    # Asigna directamente np.nan en lugar de 'N/A' antes de la conversión a numérico
+    df_contacto['Último Días de Atraso'] = df_contacto['ID CLIENTE'].map(dias_atraso_dict)
+    df_contacto['Último ID CRÉDITO'] = df_contacto['ID CLIENTE'].map(id_credito_dict)
+
+    # Solo reemplazar por np.nan si 'Créditos en Proceso' es 'FALSO' (Omitido ya que np.nan será el valor por defecto si no se encuentra el mapeo)
+    # No es necesario reasignar 'N/A' y luego reemplazarlo, ya que el mapeo con .map() ya asignará np.nan a los que no encuentre
+
+    # Convertir las columnas a numérico, asumiendo que np.nan ya está asignado a los valores faltantes
+    df_contacto['Último Días de Atraso'] = pd.to_numeric(df_contacto['Último Días de Atraso'], errors='coerce')
+    df_contacto['Último ID CRÉDITO'] = pd.to_numeric(df_contacto['Último ID CRÉDITO'], errors='coerce')
+
     return df_contacto
 
 
-def calcular_afectaciones(referidos):
-    # Aquí implementarías la lógica de cálculo de afectaciones
-    # basada en la información de referidos
-    # Por ejemplo, calcular el porcentaje de referidos en mora
-    # y ajustar el puntaje del referidor según tus reglas
-    pass
+
+def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFERIDO):
+    """
+    Calcula el incremento porcentual del puntaje final de un referidor basado en la condición de sus referidos.
+    
+    Args:
+    referidos (dict): Un diccionario conteniendo información sobre los referidos del cliente.
+    incremento_por_referido (float): El incremento porcentual aplicado al puntaje final del referidor por cada referido válido.
+    
+    Returns:
+    float: El incremento porcentual a aplicar al puntaje final del referidor. Si algún referido tiene 'Crédito Perdido': 'VERDADERO',
+          retorna 0 inmediatamente.
+    """
+    referidos_en_mora = 0
+    total_referidos_evaluados = 0
+    
+    # Revisar si algún referido tiene 'Crédito Perdido': 'VERDADERO'
+    for _, info_referido in referidos.items():
+        if info_referido.get('Crédito Perdido') == 'VERDADERO':
+            # Si algún referido perdió un crédito, el puntaje final ajustado del referidor es 0
+            return 0
+    
+    for _, info_referido in referidos.items():
+        if info_referido.get('Créditos en Proceso') == 'VERDADERO':
+            total_referidos_evaluados += 1
+            # Solo evaluar 'Último Días de Atraso' para referidos con créditos en proceso
+            if not pd.isna(info_referido.get('Último Días de Atraso')) and info_referido.get('Último Días de Atraso', 0) > 0:
+                referidos_en_mora += 1
+    
+    # Si no hay referidos con créditos en proceso, no modificar el puntaje final del referidor
+    if total_referidos_evaluados == 0:
+        return 0
+    
+    porcentaje_en_mora = (referidos_en_mora / total_referidos_evaluados) * 100
+    incremento_puntaje_final = 0
+    
+    # Aplicar incremento solo si el porcentaje de referidos en mora es menor a 20%
+    if porcentaje_en_mora < 20:
+        for _, info_referido in referidos.items():
+            if info_referido.get('Créditos en Proceso') == 'VERDADERO':
+                puntaje_referido = pd.to_numeric(info_referido.get('Puntaje', 0), errors='coerce')
+                if not pd.isna(puntaje_referido) and puntaje_referido > 800:
+                    incremento_puntaje_final += incremento_por_referido
+    
+    return incremento_puntaje_final
 
 
 
@@ -103,7 +144,18 @@ def afectaciones_por_referidos(df_contacto,df_credito):
 
 
     # Aplicamos la función a cada fila del DataFrame
-    df_contacto = actualizar_referidos(df_contacto)
+    df_contacto = buscar_info_referidos(df_contacto)
+
+    # Asumiendo que df es tu DataFrame y 'Referidos' es la columna con los diccionarios
+    df_contacto['Incremento_Puntaje_Final'] = df_contacto['Referidos'].apply(calcular_afectaciones)
+
+    # Si deseas aplicar el incremento al Puntaje_Final, primero asegúrate de tener esa columna
+    # Por ejemplo, si ya tienes un 'Puntaje_Final' y quieres incrementarlo según la lógica definida:
+    df_contacto['Puntaje_Final_Ajustado'] = df_contacto['Puntaje_Final'] * (1 + df_contacto['Incremento_Puntaje_Final'])
+    
+    # Ajustar el puntaje final ajustado para que no exceda 1000
+    df_contacto['Puntaje_Final_Ajustado'] = np.where(df_contacto['Puntaje_Final_Ajustado'] > 1000, 1000, df_contacto['Puntaje_Final_Ajustado'])
+
     print("Proceso completado")
     # Mostrar algunas filas del DataFrame para verificar los resultados
     # print(df_contacto[['ID CLIENTE', 'Referidos']].head())
@@ -111,9 +163,8 @@ def afectaciones_por_referidos(df_contacto,df_credito):
 
 
     '''
-    - Si el 20% o más de los referidos están en mora, NINGUN REFERIDO SUMA NADA
-        - De lo contrario, por cada referido entre 800 y 1000, el score de referidor aumenta en 10%*(Score-800) (Pendiente definir si 10% está bien)
-
+    Si el 20% o más de los referidos tienen en la variable 'Último Días de Atraso'>0, NINGUN REFERIDO SUMA NADA. De lo contrario, por cada referido que en la variable 'Puntaje' tenga >800, la columna 'Puntaje_Final' del cliente tiene un incremento del 10%
+    
     - Cualquier referido en mora (O con un puntaje inferior a 400, hay que probar los 2 casos) resta 10% del score del **referidor**
     
     Si existe un referido perdido. Tanto el score del referido como del referidor son 0. Los demás referidos deberían restarleses el 50% de su score (Validar si de por si ya se están viendo afectados)

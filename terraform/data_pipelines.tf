@@ -177,3 +177,33 @@ resource "aws_iam_role_policy_attachment" "cloudwatch_sfn_attachment" {
   role       = aws_iam_role.cloudwatch_role.name
   policy_arn = aws_iam_policy.cloudwatch_sfn_policy.arn
 }
+
+resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
+  name     = "credit_blockchain_publisher_pipeline"
+  role_arn = aws_iam_role.sfn_role.arn
+
+  definition = <<EOF
+{
+  "Comment": "Tribu State Machine",
+  "StartAt": "CreditBlockchainPublisher",
+  "States": {
+    "CreditBlockchainPublisher": {
+      "Type": "Task",
+      "Resource": "${aws_lambda_function.credit_blockchain_publisher.arn}",
+      "Parameters": {
+        "environment": "staging"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 96,
+          "BackoffRate": 1
+        }
+      ],
+      "End": true
+    }
+  }
+}
+EOF
+}

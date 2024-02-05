@@ -136,16 +136,16 @@ endif
 	cut -d\| -f6 | \
 	awk '/Parameters:/ { date=$$9 } \
 		/Transaction successfully sent/ { success[date]++ } \
-		/Publishing route id:/ {routes[date]++} \
+		/Publishing route id/ {routes[date]++} \
 		/Error publishing route id/ {error[date]++} \
-		/token already minted/ {already_minted[date]++} \
+		/Token already minted/ {already_minted[date]++} \
 		/insufficient funds for gas/ {insufficient_funds[date]++} \
 		/method handler crashed/ {handler_crashed[date]++} \
 		/nonce too low/ {low_nonce[date]++} \
 		/replacement transaction underpriced/ { underpriced[date]++ } \
 		END {for (d in routes) \
-			print d, "Routes:", routes[d], \
-			"Published:", success[d]+0, \
+			print d, "Routes:", routes[d]+already_minted[d]+0, \
+			"Published:", success[d]+already_minted[d]+0, \
 			"With error:", error[d]+0, \
 			"Already minted:", already_minted[d]+0, \
 			"insufficient funds:", insufficient_funds[d]+0, \

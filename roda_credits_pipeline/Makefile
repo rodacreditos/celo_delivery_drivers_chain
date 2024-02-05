@@ -16,3 +16,6 @@ run_credit_blockchain_publisher:
 deploy_credit_blockchain_publisher_docker_image: docker_login
 	docker tag rodaapp:credit_blockchain_publisher $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:credit_blockchain_publisher
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:credit_blockchain_publisher
+
+update_credit_blockchain_publisher_lambda_function:
+	aws lambda update-function-code --function-name credit_blockchain_publisher --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:credit_blockchain_publisher

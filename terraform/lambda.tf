@@ -52,6 +52,8 @@ resource "aws_lambda_function" "credit_blockchain_publisher" {
 
   timeout = 900  # Timeout in seconds (current value is 15 minutes, maximum valid value)
 
+  memory_size = 1024  # increase memory to 1 GB
+
   image_config {
     command = ["credit_blockchain_publisher.handler"] # Correct key for specifying the handler
   }

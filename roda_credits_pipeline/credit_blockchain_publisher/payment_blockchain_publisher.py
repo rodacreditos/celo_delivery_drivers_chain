@@ -176,6 +176,11 @@ def publish_to_celo(
                 set_payment_as_published(payments_table, payment_record_id, env)
                 count_published_routes += 1
                 continue
+            elif "Arithmetic operation results in underflow or overflow" in error_message:
+                logger.info(f"    -> Issues recording payment {id_payment}. The amount of this payment {amount} "
+                            f"together with other payments for credit {id_credit} overflow the initial debt. "
+                             "Discarding payment and continuing with next transaction.")
+                continue
             else:
                 logger.error(f"    -> Error publishing payment id {id_payment}")
                 all_success = False

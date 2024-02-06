@@ -197,6 +197,8 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
         {
           "ErrorEquals": ["States.TaskFailed"],
           "IntervalSeconds": 60,
+          # 44 time of 900 seconds timeout = 11 hours, 60 of intervalseconds (1minute) * 43 times waiting = 43minutes
+          # So this task will take as much 11 hours and 43 minutes
           "MaxAttempts": 44,
           "BackoffRate": 1
         }
@@ -213,6 +215,8 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
         {
           "ErrorEquals": ["States.TaskFailed"],
           "IntervalSeconds": 60,
+          # This task will take about 11 hour and 43 minutes.
+          # completing both task in less than 24 hours.
           "MaxAttempts": 44,
           "BackoffRate": 1
         }

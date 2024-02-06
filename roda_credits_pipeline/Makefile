@@ -19,3 +19,9 @@ deploy_credit_blockchain_publisher_docker_image: docker_login
 
 update_credit_blockchain_publisher_lambda_function:
 	aws lambda update-function-code --function-name credit_blockchain_publisher --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:credit_blockchain_publisher
+
+run_payment_blockchain_publisher:
+	docker run --rm \
+		-v ~/.aws:/root/.aws \
+		-i --entrypoint python rodaapp:credit_blockchain_publisher \
+		payment_blockchain_publisher.py --environment staging

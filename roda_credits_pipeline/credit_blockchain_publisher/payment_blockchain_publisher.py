@@ -170,9 +170,16 @@ def publish_to_celo(
             nonce += 1
 
         except Exception as e:
-            logger.error(f"    -> Error publishing payment id {id_payment}")
-            all_success = False
-            raise e
+            error_message = str(e)
+            if "execution reverted" in error_message:
+                logger.info(f"    -> Payment {id_credit} is already published. Continuing with next transaction.")
+                set_payment_as_published(payments_table, payment_record_id, env)
+                count_published_routes += 1
+                continue
+            else:
+                logger.error(f"    -> Error publishing payment id {id_payment}")
+                all_success = False
+                raise e
 
     return all_success, count_published_routes
 

@@ -34,7 +34,7 @@ from typing import List, Tuple, Dict, Any
 from airtable import Airtable
 from web3 import Web3, Account
 from python_utilities.utils import to_unix_timestamp, logger, setup_local_logger
-from .credit_blockchain_publisher import fetch_celo_credentials, fetch_contract_info, connect_to_blockchain, \
+from credit_blockchain_publisher import fetch_celo_credentials, fetch_contract_info, connect_to_blockchain, \
                                          fetch_airtable_credentials, wait_for_transaction_receipt
 
 

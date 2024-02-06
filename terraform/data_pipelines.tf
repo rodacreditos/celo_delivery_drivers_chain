@@ -197,7 +197,7 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
         {
           "ErrorEquals": ["States.TaskFailed"],
           "IntervalSeconds": 60,
-          "MaxAttempts": 96,
+          "MaxAttempts": 44,
           "BackoffRate": 1
         }
       ],

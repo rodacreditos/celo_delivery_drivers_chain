@@ -8,7 +8,7 @@ from api_airtable import get_table_Airtable
 from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
 
 
-INCREMENTO_POR_REFERIDO = 0.1  # 10% de incremento por cada referido que cumpla la condición
+INCREMENTO_POR_REFERIDO = 0.05  # 10% de incremento por cada referido que cumpla la condición
 
 
 
@@ -78,51 +78,48 @@ def validacion_creditos_en_proceso(df_contacto, df_credito): # PENDIENTE VALIDAR
 
 
 
-def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFERIDO):
+def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFERIDO, decremento_por_mora=0.1):
     """
-    Calcula el incremento porcentual del puntaje final de un referidor basado en la condición de sus referidos.
+    Calcula el ajuste (incremento o decremento) porcentual del puntaje final de un referidor basado en la condición de sus referidos.
     
     Args:
     referidos (dict): Un diccionario conteniendo información sobre los referidos del cliente.
-    incremento_por_referido (float): El incremento porcentual aplicado al puntaje final del referidor por cada referido válido.
+    incremento_por_referido (float): El incremento porcentual aplicado al puntaje final del referidor por cada referido válido con puntaje > 800.
+    decremento_por_mora (float): El decremento porcentual aplicado al puntaje final del referidor por cada referido en mora ('Último Días de Atraso' > 0).
     
     Returns:
-    float: El incremento porcentual a aplicar al puntaje final del referidor. Si algún referido tiene 'Crédito Perdido': 'VERDADERO',
-          retorna 0 inmediatamente.
+    float: El ajuste porcentual a aplicar al puntaje final del referidor. Si algún referido tiene 'Crédito Perdido': 'VERDADERO',
+          retorna 0 inmediatamente. Si hay referidos en mora, se resta un 10% del score del referidor por cada uno.
     """
-    referidos_en_mora = 0
     total_referidos_evaluados = 0
+    ajuste_puntaje_final = 0
     
     # Revisar si algún referido tiene 'Crédito Perdido': 'VERDADERO'
     for _, info_referido in referidos.items():
-        if info_referido.get('Crédito Perdido') == 'VERDADERO':
+        if info_referido.get('Crédito Perdido') == 'VERDADERO': # REVISAR
             # Si algún referido perdió un crédito, el puntaje final ajustado del referidor es 0
             return 0
     
     for _, info_referido in referidos.items():
         if info_referido.get('Créditos en Proceso') == 'VERDADERO':
             total_referidos_evaluados += 1
-            # Solo evaluar 'Último Días de Atraso' para referidos con créditos en proceso
-            if not pd.isna(info_referido.get('Último Días de Atraso')) and info_referido.get('Último Días de Atraso', 0) > 0:
-                referidos_en_mora += 1
+            dias_atraso = pd.to_numeric(info_referido.get('Último Días de Atraso', 0), errors='coerce')
+            
+            # Evaluar 'Último Días de Atraso' para referidos con créditos en proceso
+            if not pd.isna(dias_atraso) and dias_atraso > 0:
+                # En lugar de incrementar, restamos el 10% del score del referidor por cada referido en mora
+                ajuste_puntaje_final -= decremento_por_mora
+            else:
+                # Evaluar incremento solo si el referido tiene un puntaje > 800 y no está en mora
+                puntaje_referido = pd.to_numeric(info_referido.get('Puntaje', 0), errors='coerce')
+                if not pd.isna(puntaje_referido) and puntaje_referido > 800:
+                    ajuste_puntaje_final += incremento_por_referido
     
     # Si no hay referidos con créditos en proceso, no modificar el puntaje final del referidor
     if total_referidos_evaluados == 0:
         return 0
     
-    porcentaje_en_mora = (referidos_en_mora / total_referidos_evaluados) * 100
-    incremento_puntaje_final = 0
-    
-    # Aplicar incremento solo si el porcentaje de referidos en mora es menor a 20%
-    if porcentaje_en_mora < 20:
-        for _, info_referido in referidos.items():
-            if info_referido.get('Créditos en Proceso') == 'VERDADERO':
-                puntaje_referido = pd.to_numeric(info_referido.get('Puntaje', 0), errors='coerce')
-                if not pd.isna(puntaje_referido) and puntaje_referido > 800:
-                    incremento_puntaje_final += incremento_por_referido
-    
-    return incremento_puntaje_final
-
+    return ajuste_puntaje_final
 
 
 
@@ -155,6 +152,8 @@ def afectaciones_por_referidos(df_contacto,df_credito):
     
     # Ajustar el puntaje final ajustado para que no exceda 1000
     df_contacto['Puntaje_Final_Ajustado'] = np.where(df_contacto['Puntaje_Final_Ajustado'] > 1000, 1000, df_contacto['Puntaje_Final_Ajustado'])
+    # Que no sea inferior a 0
+    df_contacto['Puntaje_Final_Ajustado'] = np.where(df_contacto['Puntaje_Final_Ajustado'] < 0, 0, df_contacto['Puntaje_Final_Ajustado'])
 
     print("Proceso completado")
     # Mostrar algunas filas del DataFrame para verificar los resultados

@@ -184,12 +184,28 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
 
   definition = <<EOF
 {
-  "Comment": "Tribu State Machine",
+  "Comment": "Credits and payments publisher to Celo pipeline",
   "StartAt": "CreditBlockchainPublisher",
   "States": {
     "CreditBlockchainPublisher": {
       "Type": "Task",
       "Resource": "${aws_lambda_function.credit_blockchain_publisher.arn}",
+      "Parameters": {
+        "environment": "staging"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 44,
+          "BackoffRate": 1
+        }
+      ],
+      "Next": "PaymentBlockchainPublisher"
+    }
+    "PaymentBlockchainPublisher": {
+      "Type": "Task",
+      "Resource": "${aws_lambda_function.payment_blockchain_publisher.arn}",
       "Parameters": {
         "environment": "staging"
       },

@@ -25,3 +25,6 @@ run_payment_blockchain_publisher:
 		-v ~/.aws:/root/.aws \
 		-i --entrypoint python rodaapp:credit_blockchain_publisher \
 		payment_blockchain_publisher.py --environment staging
+
+update_payment_blockchain_publisher_lambda_function:
+	aws lambda update-function-code --function-name payment_blockchain_publisher --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:credit_blockchain_publisher

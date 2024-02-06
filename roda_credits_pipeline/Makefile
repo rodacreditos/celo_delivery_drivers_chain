@@ -28,3 +28,5 @@ run_payment_blockchain_publisher:
 
 update_payment_blockchain_publisher_lambda_function:
 	aws lambda update-function-code --function-name payment_blockchain_publisher --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:credit_blockchain_publisher
+
+deploy_credit_payments_pipeline: build_credit_blockchain_publisher deploy_credit_blockchain_publisher_docker_image update_credit_blockchain_publisher_lambda_function update_payment_blockchain_publisher_lambda_function

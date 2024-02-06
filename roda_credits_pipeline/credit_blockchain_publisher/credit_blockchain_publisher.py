@@ -191,6 +191,7 @@ def publish_to_celo(
     contract_address: str, 
     abi: List[Dict[str, Any]], 
     credit_records: List[Dict[str, Any]], 
+    credits_table: Airtable,
     contacts_table: Airtable, 
     mnemonic: str, 
     env: str
@@ -208,6 +209,7 @@ def publish_to_celo(
     - contract_address (str): The address of the smart contract on the Celo blockchain to interact with.
     - abi (List[Dict[str, Any]]): The ABI (Application Binary Interface) of the contract, defining how to interact with it.
     - credit_records (List[Dict[str, Any]]): A list of dictionaries, each representing a credit record to be published.
+    - credits_table (Airtable): An instance of the Airtable class for accessing the credits table.
     - contacts_table (Airtable): An instance of the Airtable class for accessing the contacts table.
     - mnemonic (str): The mnemonic phrase used to derive blockchain addresses and sign transactions.
     - env (str): The environment context ('staging' or 'production') which affects the publication process,
@@ -325,7 +327,7 @@ def publish_to_celo(
                 break
 
             logger.info(f"    -> Transaction successfully sent: credit id {id_credit}, hash {tx_hash.hex()}")
-            set_credit_as_published(contacts_table, credit_record_id, env)
+            set_credit_as_published(credits_table, credit_record_id, env)
             count_published_routes += 1
 
             # Increment the nonce for subsequent transactions
@@ -335,7 +337,7 @@ def publish_to_celo(
             error_message = str(e)
             if "ERC721: token already minted" in error_message:
                 logger.info(f"    -> Token already minted for credit id {id_credit}. Continuing with next transaction.")
-                set_credit_as_published(contacts_table, credit_record_id, env)
+                set_credit_as_published(credits_table, credit_record_id, env)
                 count_published_routes += 1
                 continue
             else:
@@ -491,7 +493,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     credit_records = fetch_non_published_credits_from_airtable(credits_table, environment)
 
     all_success, number_published_records = publish_to_celo(web3, credit_contract_addr, credit_contract_abi, credit_records,
-                                                            contacts_table, mnemonic, environment)
+                                                            credits_table, contacts_table, mnemonic, environment)
 
     if all_success:
         logger.info("FINISHED SUCCESSFULLY: blockchain publisher task")

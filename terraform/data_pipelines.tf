@@ -209,7 +209,7 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
         }
       ],
       "Next": "PaymentBlockchainPublisher"
-    }
+    },
     "PaymentBlockchainPublisher": {
       "Type": "Task",
       "Resource": "${aws_lambda_function.payment_blockchain_publisher.arn}",

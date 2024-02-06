@@ -103,7 +103,7 @@ def publish_to_celo(
             payment_fields = payment['fields']
             id_payment = int(payment_fields['ID Pagos'])
             id_credit = int(payment_fields['ID Credito Nocode'])
-            payment_date = payment_fields['Fecha de pago']
+            payment_date = to_unix_timestamp(payment_fields['Fecha de pago'], '%Y-%m-%d')
             amount = int(payment_fields['MONTO'])
             is_published_to_celo = payment_fields.get(f'PublishedToCelo{env.capitalize()}', False)
             is_credit_published_to_celo = payment_fields.get(f'CreditPublishedToCelo{env.capitalize()}', [False])[0]

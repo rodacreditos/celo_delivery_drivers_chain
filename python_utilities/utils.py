@@ -254,3 +254,23 @@ def yesterday() -> datetime:
     """
     one_day = timedelta(days=1)
     return datetime.now() - one_day
+
+
+def to_unix_timestamp(str_date: str, format: str):
+    """
+    Convert a string representation of a date to a Unix timestamp.
+    
+    Parameters:
+    - str_date (str): The date string to be converted.
+    - format (str): The format of the date string, e.g., '%Y-%m-%d %H:%M:%S'.
+    
+    Returns:
+    - int: The Unix timestamp equivalent of the given date string.
+    """
+    # Parse the string date according to the provided format
+    datetime_obj = datetime.strptime(str_date, format)
+    
+    # Convert the datetime object to a Unix timestamp
+    timestamp = int(datetime_obj.timestamp())
+    
+    return timestamp

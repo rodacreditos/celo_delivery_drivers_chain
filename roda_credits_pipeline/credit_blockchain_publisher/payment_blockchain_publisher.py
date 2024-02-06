@@ -108,13 +108,6 @@ def publish_to_celo(
             is_published_to_celo = payment_fields.get(f'PublishedToCelo{env.capitalize()}', False)
             is_credit_published_to_celo = payment_fields.get(f'CreditPublishedToCelo{env.capitalize()}', [False])[0]
 
-            # following credits has issues to publish new payments
-            ignored_credits = [322]
-
-            if id_credit in ignored_credits:
-                logger.info(f"Ignoring payment id {id_payment} because related credir {id_credit} has more amount in payments than the initial debt of the credit.")    
-                continue
-
             logger.info(f"Publishing payment id {id_payment}:")
 
             # Check if the payment has already been published and skip if it has

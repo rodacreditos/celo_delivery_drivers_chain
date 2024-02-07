@@ -91,14 +91,14 @@ def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFE
     float: El ajuste porcentual a aplicar al puntaje final del referidor. Si algún referido tiene 'Crédito Perdido': 'VERDADERO',
           retorna 0 inmediatamente. Si hay referidos en mora, se resta un 10% del score del referidor por cada uno.
     """
+
+    tiene_credito_perdido = any(info_referido.get('Crédito Perdido') == True for _, info_referido in referidos.items())
+    if tiene_credito_perdido:
+        # Devolvemos 0 como ajuste y True para indicar que se debe anular el puntaje
+        return 0, True
+
     total_referidos_evaluados = 0
     ajuste_puntaje_final = 0
-    
-    # Revisar si algún referido tiene 'Crédito Perdido': 'VERDADERO'
-    # for _, info_referido in referidos.items():
-    #    if info_referido.get('Crédito Perdido') == True: # REVISAR
-            # Si algún referido perdió un crédito, el puntaje final ajustado del referidor es 0
-    #        return 0
     
     for _, info_referido in referidos.items():
         if info_referido.get('Créditos en Proceso') == 'VERDADERO':
@@ -117,9 +117,9 @@ def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFE
     
     # Si no hay referidos con créditos en proceso, no modificar el puntaje final del referidor
     if total_referidos_evaluados == 0:
-        return 0
+        return 0, False
     
-    return ajuste_puntaje_final
+    return ajuste_puntaje_final, False
 
 
 
@@ -135,31 +135,27 @@ def afectaciones_por_referidos(df_contacto,df_credito):
 
     df_contacto['¿Referido RODA?'] = df_contacto['¿Referido RODA?'].replace({'No se encuentra': 'No'})
     df_contacto['ID Referidor Nocode'] = df_contacto['ID Referidor Nocode'].fillna('No tiene')
+
     print("Cleaning exitoso")
 
     df_contacto = validacion_creditos_en_proceso(df_contacto, df_credito)
-
-
-    # Aplicamos la función a cada fila del DataFrame
     df_contacto = buscar_info_referidos(df_contacto)
 
-    # Asumiendo que df es tu DataFrame y 'Referidos' es la columna con los diccionarios
-    df_contacto['Incremento_Puntaje_Final'] = df_contacto['Referidos'].apply(calcular_afectaciones)
+    # Aplicar 'calcular_afectaciones' y ajustar el puntaje final
+    resultados = df_contacto['Referidos'].apply(lambda referidos: calcular_afectaciones(referidos))
+    df_contacto['Incremento_Puntaje_Final'], df_contacto['Tiene_Credito_Perdido'] = zip(*resultados)
 
-    # Si deseas aplicar el incremento al Puntaje_Final, primero asegúrate de tener esa columna
-    # Por ejemplo, si ya tienes un 'Puntaje_Final' y quieres incrementarlo según la lógica definida:
-    df_contacto['Puntaje_Final_Ajustado'] = df_contacto['Puntaje_Final'] * (1 + df_contacto['Incremento_Puntaje_Final'])
-    
-    # Ajustar el puntaje final ajustado para que no exceda 1000
-    df_contacto['Puntaje_Final_Ajustado'] = np.where(df_contacto['Puntaje_Final_Ajustado'] > 1000, 1000, df_contacto['Puntaje_Final_Ajustado'])
-    # Que no sea inferior a 0
-    df_contacto['Puntaje_Final_Ajustado'] = np.where(df_contacto['Puntaje_Final_Ajustado'] < 0, 0, df_contacto['Puntaje_Final_Ajustado'])
+    # Asignar Puntaje_Final_Ajustado basado en el indicador de crédito perdido
+    df_contacto['Puntaje_Final_Ajustado'] = df_contacto.apply(
+        lambda row: 0 if row['Tiene_Credito_Perdido'] else row['Puntaje_Final'] * (1 + row['Incremento_Puntaje_Final']),
+        axis=1
+    )
+
+    # Ajustar el puntaje final ajustado para que no exceda 1000 y no sea inferior a 0
+    df_contacto['Puntaje_Final_Ajustado'] = np.clip(df_contacto['Puntaje_Final_Ajustado'], 0, 1000)
+
 
     print("Proceso completado")
-    # Mostrar algunas filas del DataFrame para verificar los resultados
-    # print(df_contacto[['ID CLIENTE', 'Referidos']].head())
-
-
 
     '''
     Si el 20% o más de los referidos tienen en la variable 'Último Días de Atraso'>0, NINGUN REFERIDO SUMA NADA. De lo contrario, por cada referido que en la variable 'Puntaje' tenga >800, la columna 'Puntaje_Final' del cliente tiene un incremento del 10%

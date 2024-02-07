@@ -84,7 +84,7 @@ def fetch_contract_info(environment: str):
     Returns:
     - tuple: Contains the contract address (str) and ABI (list) for route publishing.
     """
-    celo_contracts = read_json_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, f"credentials/roda_celo_contracts_{environment}.json"))
+    celo_contracts = read_json_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, f"credentials/roda_routes_contract_{environment}.json"))
     return celo_contracts['RODA_ROUTE_CONTRACT_ADDR'], celo_contracts['RODA_ROUTE_CONTRACT_ABI']
 
 

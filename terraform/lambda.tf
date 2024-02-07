@@ -59,6 +59,23 @@ resource "aws_lambda_function" "credit_blockchain_publisher" {
   }
 }
 
+resource "aws_lambda_function" "payment_blockchain_publisher" {
+  function_name = "payment_blockchain_publisher"
+
+  package_type = "Image"
+  image_uri    = "062988117074.dkr.ecr.us-east-2.amazonaws.com/rodaapp:credit_blockchain_publisher"
+
+  role    = aws_iam_role.lambda_exec_role.arn
+
+  timeout = 900  # Timeout in seconds (current value is 15 minutes, maximum valid value)
+
+  memory_size = 512  # increase memory to 512MB
+
+  image_config {
+    command = ["payment_blockchain_publisher.handler"] # Correct key for specifying the handler
+  }
+}
+
 resource "aws_lambda_function" "scoring_model" {
   function_name = "scoring_model"
 

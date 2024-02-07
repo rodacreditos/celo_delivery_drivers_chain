@@ -31,7 +31,7 @@ update_payment_blockchain_publisher_lambda_function:
 
 deploy_credit_payments_pipeline: build_credit_blockchain_publisher deploy_credit_blockchain_publisher_docker_image update_credit_blockchain_publisher_lambda_function update_payment_blockchain_publisher_lambda_function
 
-query_credit_payments_lambda_logs:
+query_payment_blockchain_publisher_lambda_logs:
 ifndef START_TIMESTAMP
 	$(error START_TIMESTAMP is not set)
 endif

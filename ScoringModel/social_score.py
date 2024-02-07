@@ -47,7 +47,7 @@ def buscar_info_referidos(df):
 
     return df
 
-def validacion_creditos_en_proceso(df_contacto, df_credito): # PENDIENTE VALIDAR
+def validacion_creditos_en_proceso(df_contacto, df_credito):
 
     '''
     El objetivo de esta función es crear una columna en DF_Contactos que diga si el Cliente actualmente tiene o no créditos EN PROCESO
@@ -95,10 +95,10 @@ def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFE
     ajuste_puntaje_final = 0
     
     # Revisar si algún referido tiene 'Crédito Perdido': 'VERDADERO'
-    for _, info_referido in referidos.items():
-        if info_referido.get('Crédito Perdido') == 'VERDADERO': # REVISAR
+    # for _, info_referido in referidos.items():
+    #    if info_referido.get('Crédito Perdido') == True: # REVISAR
             # Si algún referido perdió un crédito, el puntaje final ajustado del referidor es 0
-            return 0
+    #        return 0
     
     for _, info_referido in referidos.items():
         if info_referido.get('Créditos en Proceso') == 'VERDADERO':

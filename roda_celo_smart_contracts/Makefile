@@ -13,11 +13,11 @@ deploy_new_smart_contracts_staging: build_dockerimage
 		-v ~/.aws:/root/.aws \
 		-v $(shell pwd)/credentials:/usr/src/app/credentials \
 		-ti --entrypoint bash rodaapp:smart_contracts -c "truffle compile && truffle migrate --network celo_alfajores && truffle run verify RodaRoute --network celo_alfajores"
-	aws s3 cp s3://rodaapp-rappidriverchain/credentials/roda_celo_contracts_staging.json \
-				s3://rodaapp-rappidriverchain/credentials/roda_celo_contracts_staging.json.backup || true
-	aws s3 cp ./credentials/roda_celo_contracts.json s3://rodaapp-rappidriverchain/credentials/roda_celo_contracts_staging.json
+	aws s3 cp s3://rodaapp-rappidriverchain/credentials/roda_routes_contract_staging.json \
+				s3://rodaapp-rappidriverchain/credentials/roda_routes_contract_staging.json.backup || true
+	aws s3 cp ./credentials/roda_routes_contract.json s3://rodaapp-rappidriverchain/credentials/roda_routes_contract_staging.json
 	rm ./credentials/roda_celo_credentials.yaml
-	rm -f ./credentials/roda_celo_contracts.json
+	rm -f ./credentials/roda_routes_contract.json
 
 deploy_new_smart_contracts_production: build_dockerimage
 	aws s3 cp s3://rodaapp-rappidriverchain/credentials/roda_celo_credentials.yaml ./credentials/roda_celo_credentials.yaml
@@ -25,11 +25,11 @@ deploy_new_smart_contracts_production: build_dockerimage
 		-v ~/.aws:/root/.aws \
 		-v $(shell pwd)/credentials:/usr/src/app/credentials \
 		-ti --entrypoint bash rodaapp:smart_contracts -c "truffle compile && truffle migrate --network celo_alfajores && truffle run verify RodaRoute --network celo_alfajores"
-	aws s3 cp s3://rodaapp-rappidriverchain/credentials/roda_celo_contracts_production.json \
-				s3://rodaapp-rappidriverchain/credentials/roda_celo_contracts_production.json.backup || true
-	aws s3 cp ./credentials/roda_celo_contracts.json s3://rodaapp-rappidriverchain/credentials/roda_celo_contracts_production.json
+	aws s3 cp s3://rodaapp-rappidriverchain/credentials/roda_routes_contract_production.json \
+				s3://rodaapp-rappidriverchain/credentials/roda_routes_contract_production.json.backup || true
+	aws s3 cp ./credentials/roda_routes_contract.json s3://rodaapp-rappidriverchain/credentials/roda_routes_contract_production.json
 	rm ./credentials/roda_celo_credentials.yaml
-	rm -f ./credentials/roda_celo_contracts.json
+	rm -f ./credentials/roda_routes_contract.json
 
 deploy_new_roda_credit_smart_contract_staging: build_dockerimage
 	aws s3 cp s3://rodaapp-rappidriverchain/credentials/roda_celo_credentials.yaml ./credentials/roda_celo_credentials.yaml

@@ -6,7 +6,7 @@ sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba
 
 from api_airtable import get_table_Airtable
 from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
-from social_score import afectaciones_por_referidos
+from social_score import afectaciones_por_referidos_changed
 # Constantes
 
 airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
@@ -322,7 +322,7 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedi
     DF_contactos['Puntaje_Final'] = DF_contactos.apply(aplicar_calculo, axis=1)
 
 
-    DF_contactos = afectaciones_por_referidos(DF_contactos, DF_solicitud_credito)
+    DF_contactos = afectaciones_por_referidos_changed(DF_contactos, DF_solicitud_credito)
     print(DF_contactos)
     return DF_contactos
 

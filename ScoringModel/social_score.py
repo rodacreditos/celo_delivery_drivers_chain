@@ -13,6 +13,17 @@ INCREMENTO_POR_REFERIDO = 0.05  # 10% de incremento por cada referido que cumpla
 
 
 def buscar_info_referidos(df):
+
+    """
+    Esta función busca y asocia los referidos de cada cliente en el DataFrame proporcionado. Para cada cliente, identifica a sus referidos basándose en el 'ID Referidor Nocode' y compila información relevante de estos referidos en un diccionario, que luego se asigna a una nueva columna en el DataFrame.
+
+    Args:
+    df (pd.DataFrame): DataFrame que contiene la información de los clientes, incluyendo su ID y el ID de quien los refirió ('ID Referidor Nocode').
+
+    Returns:
+    pd.DataFrame: El mismo DataFrame de entrada con una columna adicional ('Referidos') que contiene un diccionario por cada fila/cliente. Este diccionario tiene como claves los IDs de los referidos y como valores otro diccionario con información específica de cada referido (créditos en proceso, días de atraso, ID del último crédito, si tiene crédito perdido y su puntaje final).
+    """
+
     # Crear una columna nueva para almacenar los referidos como diccionarios
     df['Referidos'] = None
     
@@ -49,11 +60,17 @@ def buscar_info_referidos(df):
 
 def validacion_creditos_en_proceso(df_contacto, df_credito):
 
-    '''
-    El objetivo de esta función es crear una columna en DF_Contactos que diga si el Cliente actualmente tiene o no créditos EN PROCESO
-    
+    """
+    Valida si cada cliente en el DataFrame de contacto tiene créditos en proceso en el DataFrame de créditos. Crea una columna nueva en el DataFrame de contacto para indicar si el cliente tiene o no créditos en proceso. Además, actualiza el DataFrame de contacto con información sobre el último crédito en proceso para cada cliente, incluyendo días de atraso y el ID del crédito.
 
-    '''
+    Args:
+    df_contacto (pd.DataFrame): DataFrame que contiene información de los clientes, incluyendo su ID.
+    df_credito (pd.DataFrame): DataFrame que contiene información sobre los créditos, incluyendo el estado del crédito, la fecha de desembolso, el ID del cliente, y días de atraso.
+
+    Returns:
+    pd.DataFrame: El DataFrame de contacto actualizado con nuevas columnas: 'Créditos en Proceso' (indica si el cliente tiene créditos en proceso), 'Último Días de Atraso' (días de atraso del último crédito en proceso), y 'Último ID CRÉDITO' (ID del último crédito en proceso).
+    """
+
     df_credito_en_proceso = df_credito[df_credito['ESTADO'] == 'EN PROCESO']
     ultimo_credito_por_cliente = df_credito_en_proceso.sort_values(by='Fecha desembolso', ascending=False).drop_duplicates('ID Cliente nocode')
 
@@ -125,11 +142,16 @@ def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFE
 
 def afectaciones_por_referidos(df_contacto,df_credito):
     
-    
-    '''
-    Here we are building social_score
+    """
+    Calcula y aplica las afectaciones al puntaje final de los clientes en el DataFrame de contacto basadas en la información de sus referidos y los créditos en proceso. Limpia y prepara los datos de contacto, valida los créditos en proceso, busca información de referidos, y calcula el ajuste porcentual del puntaje final. Finalmente, ajusta el puntaje final de los referidores basado en la condición de sus referidos y asegura que el puntaje ajustado no exceda los límites establecidos.
 
-    '''
+    Args:
+    df_contacto (pd.DataFrame): DataFrame con información de los clientes, incluyendo su ID, si fue referido por otro cliente, y su puntaje final.
+    df_credito (pd.DataFrame): DataFrame con información de los créditos, incluyendo el estado del crédito, el ID del cliente, y otros detalles relevantes.
+
+    Returns:
+    pd.DataFrame: El DataFrame de contacto actualizado con las columnas 'Incremento_Puntaje_Final', 'Tiene_Credito_Perdido' y 'Puntaje_Final_Ajustado', este último refleja el puntaje final ajustado basado en las afectaciones calculadas de los referidos y se asegura de que esté dentro del rango de 0 a 1000.
+    """
 
     print("Entró a afectaciones")
 
@@ -156,20 +178,5 @@ def afectaciones_por_referidos(df_contacto,df_credito):
 
 
     print("Proceso completado")
-
-    '''
-    Si el 20% o más de los referidos tienen en la variable 'Último Días de Atraso'>0, NINGUN REFERIDO SUMA NADA. De lo contrario, por cada referido que en la variable 'Puntaje' tenga >800, la columna 'Puntaje_Final' del cliente tiene un incremento del 10%
-    
-    - Cualquier referido en mora (O con un puntaje inferior a 400, hay que probar los 2 casos) resta 10% del score del **referidor**
-    
-    Si existe un referido perdido. Tanto el score del referido como del referidor son 0. Los demás referidos deberían restarleses el 50% de su score (Validar si de por si ya se están viendo afectados)
-
-    '''
-
-    #------------Referidor-----------------------
-
-    '''
-    Si mi referidor entra en mora (O tiene un puntaje menor o igual a X número) resta 10% del score del referido
-    '''
 
     return df_contacto

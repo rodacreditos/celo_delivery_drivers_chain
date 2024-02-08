@@ -150,7 +150,7 @@ def afectaciones_por_referidos(df_contacto,df_credito):
     df_credito (pd.DataFrame): DataFrame con información de los créditos, incluyendo el estado del crédito, el ID del cliente, y otros detalles relevantes.
 
     Returns:
-    pd.DataFrame: El DataFrame de contacto actualizado con las columnas 'Incremento_Puntaje_Final', 'Tiene_Credito_Perdido' y 'Puntaje_Final_Ajustado', este último refleja el puntaje final ajustado basado en las afectaciones calculadas de los referidos y se asegura de que esté dentro del rango de 0 a 1000.
+    pd.DataFrame: El DataFrame de contacto actualizado con las columnas 'Incremento_Puntaje_Final', 'REFERIDO_Perdido' y 'Puntaje_Final_Ajustado', este último refleja el puntaje final ajustado basado en las afectaciones calculadas de los referidos y se asegura de que esté dentro del rango de 0 a 1000.
     """
 
     print("Entró a afectaciones")
@@ -165,11 +165,11 @@ def afectaciones_por_referidos(df_contacto,df_credito):
 
     # Aplicar 'calcular_afectaciones' y ajustar el puntaje final
     resultados = df_contacto['Referidos'].apply(lambda referidos: calcular_afectaciones(referidos))
-    df_contacto['Incremento_Puntaje_Final'], df_contacto['Tiene_Credito_Perdido'] = zip(*resultados)
+    df_contacto['Incremento_Puntaje_Final'], df_contacto['REFERIDO_Perdido'] = zip(*resultados)
 
     # Asignar Puntaje_Final_Ajustado basado en el indicador de crédito perdido
     df_contacto['Puntaje_Final_Ajustado'] = df_contacto.apply(
-        lambda row: 0 if row['Tiene_Credito_Perdido'] else row['Puntaje_Final'] * (1 + row['Incremento_Puntaje_Final']),
+        lambda row: 0 if row['REFERIDO_Perdido'] else row['Puntaje_Final'] * (1 + row['Incremento_Puntaje_Final']),
         axis=1
     )
 
@@ -185,53 +185,71 @@ def afectaciones_por_referidos(df_contacto,df_credito):
 #--------------------------ORIENTED TO DATAFRAMES----------------------------------------------------------
 
 def afectaciones_por_referidos_changed(df_contacto, df_credito):
-    # Convertir ID a float64 y limpiar NaN
+    """
+    Esta función ajusta los puntajes finales de los clientes en df_contacto basándose en la condición de sus referidos en df_credito.
+    
+    Args:
+        df_contacto (pd.DataFrame): DataFrame de clientes con columnas 'ID CLIENTE', 'Puntaje_Final', etc.
+        df_credito (pd.DataFrame): DataFrame de créditos con columnas 'ID Cliente nocode', 'ESTADO', 'Días de atraso', 'Tiene Credito Perdido', etc.
+    
+    Returns:
+        pd.DataFrame: DataFrame de contacto actualizado con los puntajes finales ajustados y un indicador si algún referido ha perdido un crédito.
+    """
+
+    # Convertir ID a float64 y limpiar NaN para asegurar la consistencia en los tipos de datos
     df_contacto['ID CLIENTE'] = pd.to_numeric(df_contacto['ID CLIENTE'], errors='coerce').astype('float64')
     df_credito['ID Cliente nocode'] = pd.to_numeric(df_credito['ID Cliente nocode'], errors='coerce').astype('float64')
     df_contacto.dropna(subset=['ID CLIENTE'], inplace=True)
     df_credito.dropna(subset=['ID Cliente nocode'], inplace=True)
-    
-    # Validación de créditos en proceso
+
+    # Validar créditos en proceso para cada cliente en df_contacto basado en información de df_credito
     df_contacto = validacion_creditos_en_proceso(df_contacto, df_credito)
 
-    # Identificar referidos directamente
-    # No es necesario realizar la unión incorrecta aquí
-
-    # Calcular ajustes basados en la condición de los referidos
-    def calcular_ajustes(id_referidor):
+    # Calcular ajustes basados en la condición de los referidos para cada referidor
+    def calcular_ajustes(id_referidor, df_contacto, df_credito):
+        # Filtrar referidos del referidor específico
         referidos = df_contacto[df_contacto['ID Referidor Nocode'] == id_referidor]
-        ajuste = 0
-        tiene_credito_perdido = any(referidos['Tiene Credito Perdido'])
-        
-        if tiene_credito_perdido:
-            return {'Ajuste_Puntaje': 0, 'Tiene_Credito_Perdido': 'VERDADERO'}
-        
+        ajuste = 0  # Inicializar ajuste
+        referido_credito_perdido = False  # Inicializar bandera para crédito perdido
+
+        # Iterar sobre cada referido para verificar crédito perdido y calcular ajustes
         for _, referido in referidos.iterrows():
-            # Suponiendo que 'ESTADO' y 'Días de atraso' están en df_credito y necesitamos cruzar esta info
             info_credito = df_credito[df_credito['ID Cliente nocode'] == referido['ID CLIENTE']]
             if not info_credito.empty:
+                tiene_credito_perdido = info_credito.iloc[0]['Tiene Credito Perdido']
                 estado = info_credito.iloc[0]['ESTADO']
                 dias_atraso = info_credito.iloc[0]['Días de atraso']
+                
+                # Si algún referido tiene un crédito perdido, establecer bandera a True
+                if tiene_credito_perdido:
+                    referido_credito_perdido = True
+                    break  # Finalizar el bucle si se encuentra un crédito perdido
+                
+                # Calcular ajustes basados en el estado y días de atraso de los créditos de referidos
                 if estado == 'EN PROCESO' and dias_atraso > 0:
-                    ajuste -= 0.1
+                    ajuste -= 0.1  # Decrementar ajuste por mora
                 elif referido['Puntaje_Final'] > 800:
-                    ajuste += INCREMENTO_POR_REFERIDO
+                    ajuste += INCREMENTO_POR_REFERIDO  # Incrementar ajuste por referido válido
         
-        return {'Ajuste_Puntaje': ajuste, 'Tiene_Credito_Perdido': 'FALSO'}
+        # Retornar puntaje final ajustado y bandera de crédito perdido
+        if referido_credito_perdido:
+            return {'Puntaje_Final_Ajustado': 0, 'REFERIDO_Perdido': 'VERDADERO'}
+        else:
+            # Asumir que el ajuste modifica directamente el puntaje final
+            return {'Puntaje_Final_Ajustado': ajuste, 'REFERIDO_Perdido': 'FALSO'}
 
-    # Aplicar los ajustes para cada referidor
-    ajustes = {id_cliente: calcular_ajustes(id_cliente) for id_cliente in df_contacto['ID CLIENTE'].unique()}
+    # Aplicar ajustes para cada referidor en df_contacto
+    ajustes = {id_cliente: calcular_ajustes(id_cliente, df_contacto, df_credito) for id_cliente in df_contacto['ID CLIENTE'].unique()}
     df_ajustes = pd.DataFrame.from_dict(ajustes, orient='index').reset_index().rename(columns={'index': 'ID CLIENTE'})
     
-    # Unir los ajustes calculados con df_contacto
+    # Unir los ajustes calculados con df_contacto para actualizar los puntajes finales y el indicador de crédito perdido
     df_contacto_final = pd.merge(df_contacto, df_ajustes, on='ID CLIENTE', how='left')
     
     # Llenar valores faltantes para asegurar integridad
-    df_contacto_final['Ajuste_Puntaje'].fillna(0, inplace=True)
-    df_contacto_final['Tiene_Credito_Perdido'].fillna('FALSO', inplace=True)
+    df_contacto_final['Puntaje_Final_Ajustado'].fillna(df_contacto_final['Puntaje_Final'], inplace=True)
+    df_contacto_final['REFERIDO_Perdido'].fillna('FALSO', inplace=True)
     
-    # Aplicar ajustes al puntaje final
-    df_contacto_final['Puntaje_Final_Ajustado'] = df_contacto_final['Puntaje_Final'] * (1 + df_contacto_final['Ajuste_Puntaje'])
+    # Asegurar que el puntaje final ajustado esté en el rango de 0 a 1000
     df_contacto_final['Puntaje_Final_Ajustado'] = df_contacto_final['Puntaje_Final_Ajustado'].clip(lower=0, upper=1000)
 
     return df_contacto_final

@@ -83,8 +83,8 @@ resource "aws_sfn_state_machine" "tribu_state_machine" {
         {
           "ErrorEquals": ["States.TaskFailed"],
           "IntervalSeconds": 60,
-          "MaxAttempts": 5,
-          "BackoffRate": 2.0
+          "MaxAttempts": 25,
+          "BackoffRate": 1
         }
       ],
       "End": true

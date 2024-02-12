@@ -7,8 +7,7 @@ sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba
 from api_airtable import get_table_Airtable
 from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
 
-
-INCREMENTO_POR_REFERIDO = 0.05  # 10% de incremento por cada referido que cumpla la condición
+INCREMENTO_POR_REFERIDO1 = 0.05
 
 
 
@@ -95,7 +94,7 @@ def validacion_creditos_en_proceso(df_contacto, df_credito):
 
 
 
-def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFERIDO, decremento_por_mora=0.1):
+def calcular_afectaciones(referidos, incremento_por_referido=INCREMENTO_POR_REFERIDO1, decremento_por_mora=0.1):
     """
     Calcula el ajuste (incremento o decremento) porcentual del puntaje final de un referidor basado en la condición de sus referidos.
     
@@ -184,10 +183,7 @@ def afectaciones_por_referidos(df_contacto,df_credito):
 
 #--------------------------ORIENTED TO DATAFRAMES----------------------------------------------------------
 
-
-import pandas as pd
-
-def afectaciones_por_referidos_changed(df_contacto, df_credito):
+def afectaciones_por_referidos_changed(df_contacto, df_credito, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS):
     """
     Esta función ajusta los puntajes finales de los clientes en df_contacto basándose en la condición de sus referidos en df_credito.
 
@@ -209,28 +205,45 @@ def afectaciones_por_referidos_changed(df_contacto, df_credito):
     df_contacto = validacion_creditos_en_proceso(df_contacto, df_credito)
 
     def calcular_ajustes(id_referidor, df_contacto):
-        referidos = df_contacto[df_contacto['ID Referidor Nocode'] == id_referidor]
-        print(f"Referidor: {id_referidor}, Referidos: {referidos['ID CLIENTE'].tolist()}")
+        # Filtrar referidos que tienen "Créditos en Proceso" = 'VERDADERO'
+        referidos = df_contacto[(df_contacto['ID Referidor Nocode'] == id_referidor) & (df_contacto['Créditos en Proceso'] == 'VERDADERO')]
         ajuste_calculado = 0
         referido_perdido = 'FALSO'
+        referidos_con_atraso = 0
+        info_referidos = []  # Lista para almacenar información de cada referido
+        print(f"Calculando ajustes para el referidor {id_referidor}, {len(referidos)} referidos en proceso")
 
+        # Contar referidos con 'Último Días de Atraso' > 0 y recopilar información
         for _, referido in referidos.iterrows():
-            print(f"Verificando referido {referido['ID CLIENTE']}: Tiene Credito Perdido = {referido['Tiene Credito Perdido']}")
-            if referido['Tiene Credito Perdido'] == True:
-                print("Referido con crédito perdido encontrado.")
+            info_referido = {'ID CLIENTE': referido['ID CLIENTE'], 'Puntaje_Final': referido['Puntaje_Final'], 'Último Días de Atraso': referido.get('Último Días de Atraso', 0)}
+            if info_referido['Último Días de Atraso'] > 0:
+                referidos_con_atraso += 1
+            if 'Tiene Credito Perdido' in referido and referido['Tiene Credito Perdido'] == True:  # Asumiendo que 'Tiene Credito Perdido' es una columna en df_contacto
                 referido_perdido = 'VERDADERO'
-                ajuste_calculado = 0  # Restablecer ajuste a 0 si algún referido tiene crédito perdido
-                break  # No es necesario continuar si ya encontramos un crédito perdido
+                print(f"Referido con crédito perdido encontrado: {referido['ID CLIENTE']}")
+            info_referidos.append(info_referido)
 
-        # Si no se encontró crédito perdido, calcular ajuste basado en otras condiciones (omitido para simplificar)
-        
-        return ajuste_calculado, referido_perdido
+        # Calcular el porcentaje de referidos con atraso
+        porcentaje_con_atraso = (referidos_con_atraso / len(referidos)) if referidos.shape[0] > 0 else 0
+        print(f"Porcentaje con atraso: {porcentaje_con_atraso}, Referido perdido: {referido_perdido}")
 
-    # Aplicar ajustes
+        for referido in info_referidos:
+            if referido_perdido == 'VERDADERO':
+                break  # Si ya se encontró un referido perdido, no se hacen más cálculos
+            if porcentaje_con_atraso < UMBRAL_BONUS and referido['Puntaje_Final'] > 800:
+                ajuste_calculado += INCREMENTO_POR_REFERIDO
+            if referido['Último Días de Atraso'] > 0:
+                ajuste_calculado -= DECREMENTO_POR_REFERIDO
+
+        return ajuste_calculado, referido_perdido, info_referidos
+
+
+    # Aplicar ajustes y almacenar información de referidos
     for id_cliente in df_contacto['ID CLIENTE'].unique():
-        ajuste_calculado, referido_perdido = calcular_ajustes(id_cliente, df_contacto)
+        ajuste_calculado, referido_perdido, info_referidos = calcular_ajustes(id_cliente, df_contacto)
         df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Ajuste_calculado'] = ajuste_calculado
         df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'REFERIDO_Perdido'] = referido_perdido
+        df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Info_Referidos'] = str(info_referidos)
 
     # Calcular Puntaje_Final_Ajustado
     df_contacto['Puntaje_Final_Ajustado'] = df_contacto.apply(

@@ -85,9 +85,28 @@ def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO,
     # Convertir ID a float64 y limpiar NaN
     df_contacto['ID CLIENTE'] = pd.to_numeric(df_contacto['ID CLIENTE'], errors='coerce').astype('float64')
     df_credito['ID Cliente nocode'] = pd.to_numeric(df_credito['ID Cliente nocode'], errors='coerce').astype('float64')
+    df_contacto['ID Referidor Nocode'] = pd.to_numeric(df_contacto['ID Referidor Nocode'], errors='coerce')
     df_contacto.dropna(subset=['ID CLIENTE'], inplace=True)
     df_credito.dropna(subset=['ID Cliente nocode'], inplace=True)
 
+    # Añadimos la columna 'REFERIDOR_Perdido' con un valor default 'FALSO'
+    df_contacto['REFERIDOR_Perdido'] = 'FALSO'
+
+    for index, row in df_contacto.iterrows():
+        id_referidor = row['ID Referidor Nocode']
+        
+        # Manejo de excepción para cuando no hay un referidor o el ID está vacío
+        if pd.isna(id_referidor):
+            continue  # No se realiza ninguna acción, el valor default 'FALSO' permanece
+
+        # Consulta para encontrar al referidor
+        referidor = df_contacto[df_contacto['ID CLIENTE'] == id_referidor]
+        
+        # Verificación y asignación basada en la existencia de crédito perdido
+        if not referidor.empty and referidor.iloc[0]['Tiene Credito Perdido']:
+            df_contacto.at[index, 'REFERIDOR_Perdido'] = 'VERDADERO'
+
+            
     # Validar créditos en proceso
     df_contacto = validacion_creditos_en_proceso(df_contacto, df_credito)
 

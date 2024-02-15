@@ -228,7 +228,7 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
 def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = float) -> pd.DataFrame:
     pd.set_option('display.max_columns', None) # Delete after testing
     logger.info("Splitting routes...")
-    print(df.head()) # Delete after testing
+    print(df) # Delete after testing
 
     def adjust_route_distribution(route_distance, max_distance, avg_distance):
         # Determine if the route_distance exceeds the max_distance allowed.
@@ -258,7 +258,6 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
     df[['real_routes', 'real_f_distancia']] = df['f_distancia'].apply(lambda x: adjust_route_distribution(x, max_distance, avg_distance))
 
     print("'real_routes', 'real_route_distance' added") # Delete after testing
-    print(df) # Delete after testing
 
     # Computing numbers...
     total_real_routes = df['real_routes'].sum()
@@ -280,6 +279,9 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
             # Divide the total duration by the number of real routes to get the duration per route.
             duration_per_route_seconds = total_duration_seconds / row['real_routes']
             
+            # Calculate the duration in minutes for each route.
+            duration_per_route_minutes = duration_per_route_seconds / 60
+
             # Create the specified number of real routes for each original route.
             for i in range(int(row['real_routes'])):
                 # Make a copy of the current row to modify it for each new route.
@@ -300,6 +302,9 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
                     new_row['o_fecha_final'] = row['o_fecha_final']
                 else:
                     new_row['o_fecha_final'] = end_time
+
+                # Update 'durationMinutes' for each new route based on the evenly divided duration.
+                new_row['durationMinutes'] = duration_per_route_minutes
 
                 # Add the modified row to the list of new rows.
                 rows_list.append(new_row)

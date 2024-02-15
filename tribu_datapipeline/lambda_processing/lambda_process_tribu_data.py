@@ -226,74 +226,95 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
     return df
 
 def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = float) -> pd.DataFrame:
-    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_columns', None) # Delete after testing
     logger.info("Splitting routes...")
-    print(df.head())
+    print(df.head()) # Delete after testing
 
     def adjust_route_distribution(route_distance, max_distance, avg_distance):
+        # Determine if the route_distance exceeds the max_distance allowed.
+        # If it does, calculate the number of real_routes needed and the adjusted distance for each.
         if route_distance > max_distance:
+            # Calculate the number of real routes by dividing the total route distance by the average distance.
             real_routes = route_distance // avg_distance
-            real_route_distance = route_distance / real_routes  # Mantiene la distancia original distribuida equitativamente
+            # Calculate the real route distance by dividing the total distance by the number of real routes.
+            # This ensures the original distance is evenly distributed across all real routes.
+            real_route_distance = route_distance / real_routes
         else:
+            # If the route distance does not exceed the max distance, only one route is needed,
+            # and its distance remains the same as the original.
             real_routes = 1
             real_route_distance = route_distance
 
-        # Asegura que la distancia total no exceda la original ajustando la última ruta si es necesario
+        # Ensure that the total distributed distance across all real routes does not exceed the original route distance.
         total_distributed_distance = real_route_distance * real_routes
         if total_distributed_distance > route_distance:
-            # Ajusta la distancia de la última ruta para corregir cualquier excedente
+            # If the total distributed distance exceeds the original distance (due to rounding),
+            # adjust the distance of the last route to correct any excess.
             real_route_distance -= (total_distributed_distance - route_distance) / real_routes
-
+        # Return a Series containing the number of real routes and the adjusted distance for each route.
         return pd.Series([real_routes, real_route_distance], index=['real_routes', 'real_f_distancia'])
 
-    # Aplica la función a cada fila
+    # Apply function to each row
     df[['real_routes', 'real_f_distancia']] = df['f_distancia'].apply(lambda x: adjust_route_distribution(x, max_distance, avg_distance))
 
-    print("'real_routes', 'real_route_distance' added")
-    print(df)
+    print("'real_routes', 'real_route_distance' added") # Delete after testing
+    print(df) # Delete after testing
 
-    # Realizar el cálculo
+    # Computing numbers...
     total_real_routes = df['real_routes'].sum()
     original_route_count = len(df)
     extra_routes_added = total_real_routes - original_route_count
 
-    # Formatear y publicar el mensaje del logger
     logger.info(f"About to split {extra_routes_added} extra routes...")
 
 
 
     def expand_routes_based_on_real_routes(df: pd.DataFrame) -> pd.DataFrame:
-        # Lista para almacenar las filas replicadas
+        # Initialize an empty list to store the new rows (routes).
         rows_list = []
         
+        # Iterate through each row in the input DataFrame.
         for _, row in df.iterrows():
-            # Replicar la fila actual real_routes veces
-            for _ in range(int(row['real_routes'])):
-                # Crear una copia de la fila actual para modificarla
+            # Calculate the total duration between the initial and final timestamps in seconds.
+            total_duration_seconds = (row['o_fecha_final'] - row['o_fecha_inicial']).total_seconds()
+            # Divide the total duration by the number of real routes to get the duration per route.
+            duration_per_route_seconds = total_duration_seconds / row['real_routes']
+            
+            # Create the specified number of real routes for each original route.
+            for i in range(int(row['real_routes'])):
+                # Make a copy of the current row to modify it for each new route.
                 new_row = row.copy()
-                # Ajustar la columna 'f_distancia' al valor de 'real_f_distancia'
+                # Set the 'f_distancia' (distance) for the new route to the calculated real route distance.
                 new_row['f_distancia'] = row['real_f_distancia']
-                # Añadir la fila modificada a la lista
+                
+                # Calculate and adjust the start and end timestamps for each new route.
+                # The start time for each route is the initial timestamp plus the duration of previous routes.
+                start_time = row['o_fecha_inicial'] + pd.Timedelta(seconds=i * duration_per_route_seconds)
+                # The end time is calculated by adding the duration per route to the start time.
+                end_time = row['o_fecha_inicial'] + pd.Timedelta(seconds=(i + 1) * duration_per_route_seconds)
+                
+                # Update the initial and final timestamps for the new route.
+                new_row['o_fecha_inicial'] = start_time
+                # Ensure the final route ends exactly at the original final timestamp.
+                if i == (row['real_routes'] - 1):
+                    new_row['o_fecha_final'] = row['o_fecha_final']
+                else:
+                    new_row['o_fecha_final'] = end_time
+
+                # Add the modified row to the list of new rows.
                 rows_list.append(new_row)
-        
-        # Crear un nuevo DataFrame a partir de la lista de filas
+        # Create a new DataFrame from the list of new rows.
         new_df = pd.DataFrame(rows_list)
-        
-        # Restablecer el índice del nuevo DataFrame
+        # Reset the index of the new DataFrame for consistency.
         new_df.reset_index(drop=True, inplace=True)
-        
-        # Devolver el nuevo DataFrame con las filas expandidas
         return new_df
 
 
-    # Aplicar la función al DataFrame resultante de apply_split_routes
+    # Apply function to Dataframe obtained before
     df_expanded = expand_routes_based_on_real_routes(df)
 
-    # Opcional: puedes querer eliminar las filas originales que ya no son necesarias
-    # Esto ya está manejado en la función al crear un nuevo DataFrame con solo las filas necesarias
-
-    # Mostrar el nuevo DataFrame para verificar el resultado
-    print(df_expanded.head())
+    # No need to delete original records, since logic does not consider them.
+    print(df_expanded)
 
     return df
 

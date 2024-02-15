@@ -225,6 +225,78 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
     df.loc[df['f_distancia'] > df['maxExpectedDistance'], 'f_distancia'] = df['maxExpectedDistance']
     return df
 
+def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = float) -> pd.DataFrame:
+    pd.set_option('display.max_columns', None)
+    logger.info("Splitting routes...")
+    print(df.head())
+
+    def adjust_route_distribution(route_distance, max_distance, avg_distance):
+        if route_distance > max_distance:
+            real_routes = route_distance // avg_distance
+            real_route_distance = route_distance / real_routes  # Mantiene la distancia original distribuida equitativamente
+        else:
+            real_routes = 1
+            real_route_distance = route_distance
+
+        # Asegura que la distancia total no exceda la original ajustando la última ruta si es necesario
+        total_distributed_distance = real_route_distance * real_routes
+        if total_distributed_distance > route_distance:
+            # Ajusta la distancia de la última ruta para corregir cualquier excedente
+            real_route_distance -= (total_distributed_distance - route_distance) / real_routes
+
+        return pd.Series([real_routes, real_route_distance], index=['real_routes', 'real_f_distancia'])
+
+    # Aplica la función a cada fila
+    df[['real_routes', 'real_f_distancia']] = df['f_distancia'].apply(lambda x: adjust_route_distribution(x, max_distance, avg_distance))
+
+    print("'real_routes', 'real_route_distance' added")
+    print(df)
+
+    # Realizar el cálculo
+    total_real_routes = df['real_routes'].sum()
+    original_route_count = len(df)
+    extra_routes_added = total_real_routes - original_route_count
+
+    # Formatear y publicar el mensaje del logger
+    logger.info(f"About to split {extra_routes_added} extra routes...")
+
+
+
+    def expand_routes_based_on_real_routes(df: pd.DataFrame) -> pd.DataFrame:
+        # Lista para almacenar las filas replicadas
+        rows_list = []
+        
+        for _, row in df.iterrows():
+            # Replicar la fila actual real_routes veces
+            for _ in range(int(row['real_routes'])):
+                # Crear una copia de la fila actual para modificarla
+                new_row = row.copy()
+                # Ajustar la columna 'f_distancia' al valor de 'real_f_distancia'
+                new_row['f_distancia'] = row['real_f_distancia']
+                # Añadir la fila modificada a la lista
+                rows_list.append(new_row)
+        
+        # Crear un nuevo DataFrame a partir de la lista de filas
+        new_df = pd.DataFrame(rows_list)
+        
+        # Restablecer el índice del nuevo DataFrame
+        new_df.reset_index(drop=True, inplace=True)
+        
+        # Devolver el nuevo DataFrame con las filas expandidas
+        return new_df
+
+
+    # Aplicar la función al DataFrame resultante de apply_split_routes
+    df_expanded = expand_routes_based_on_real_routes(df)
+
+    # Opcional: puedes querer eliminar las filas originales que ya no son necesarias
+    # Esto ya está manejado en la función al crear un nuevo DataFrame con solo las filas necesarias
+
+    # Mostrar el nuevo DataFrame para verificar el resultado
+    print(df_expanded.head())
+
+    return df
+
 
 def add_celo_contract_address(df):
     """
@@ -384,6 +456,10 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     if "distance_fix" in trans_params:
         distance_fix = trans_params["distance_fix"]
         df = fix_distance_by_max_per_hour(df, distance_fix["expected_max_per_hour"])
+
+    if "split_big_routes" in trans_params:
+        split_big_routes = trans_params["split_big_routes"]
+        df = apply_split_routes(df, split_big_routes["avg_distance"], split_big_routes["max_distance"])
 
     # Add Celo contract addresses to the DataFrame
     df = add_celo_contract_address(df)

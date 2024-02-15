@@ -226,11 +226,69 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
     return df
 
 def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = float) -> pd.DataFrame:
+
+    """
+    Splits the routes in the provided DataFrame according to specified average and maximum distance constraints,
+    and adjusts their distribution to ensure none exceeds the maximum allowed distance per route. This function also
+    recalculates the duration and timestamps for each split route based on the original route's duration and
+    distributes it evenly across the new routes.
+
+    The process involves two main steps:
+    1. Adjusting the route distance: Each route's distance is compared against the maximum allowed distance. If a
+       route exceeds this limit, it is split into multiple 'real routes' with distances adjusted to ensure the total
+       sum equals the original distance, without exceeding the maximum distance per route.
+    2. Expanding routes based on real routes: For routes that were split, new rows are added to the DataFrame for each
+       real route, with adjusted distances and evenly distributed durations based on the original route's total duration.
+
+    Parameters:
+    - df (pd.DataFrame): A DataFrame containing the routes to be split, with each row representing a route. It must
+                         include columns for route distance ('f_distancia'), initial timestamp ('o_fecha_inicial'), and
+                         final timestamp ('o_fecha_final').
+    - avg_distance (float): The target average distance for real routes. This is used to calculate the number of real
+                            routes needed when a route's distance exceeds the maximum allowed distance.
+    - max_distance (float): The maximum allowed distance for a single route. Routes exceeding this distance will be
+                            split into multiple real routes with adjusted distances.
+
+    Returns:
+    - pd.DataFrame: A new DataFrame containing the original and newly created routes, where each route complies with
+                    the maximum distance constraint. The DataFrame includes adjusted distances for each route and
+                    recalculated initial and final timestamps to reflect the distribution of the original route's
+                    duration across its real routes.
+
+    This function ensures that all routes in the returned DataFrame do not exceed the specified maximum distance,
+    facilitating more manageable and realistic route planning and analysis. It also recalculates and distributes the
+    duration of each original route evenly across its split parts, maintaining consistency in route timing.
+    """
+
     pd.set_option('display.max_columns', None) # Delete after testing
     logger.info("Splitting routes...")
     print(df) # Delete after testing
 
     def adjust_route_distribution(route_distance, max_distance, avg_distance):
+
+        """
+        Adjusts the distribution of a given route distance to ensure it does not exceed a specified maximum distance,
+        while also considering an average distance for real routes.
+
+        This function calculates the number of real routes required to cover the total route distance without exceeding
+        the maximum allowed distance per route. If the original route distance is greater than the maximum distance,
+        the route is split into several real routes, each with an adjusted distance such that the sum of distances
+        for all real routes equals the original route distance. The adjustment ensures that the distribution of
+        distances is as even as possible, correcting for any excess due to rounding.
+
+        Parameters:
+        - route_distance (float): The total distance of the route that needs adjustment.
+        - max_distance (float): The maximum allowed distance for a single route.
+        - avg_distance (float): The target average distance for real routes, used to calculate the number of real routes.
+
+        Returns:
+        - pd.Series: A Series object containing two elements:
+            - real_routes (int): The number of real routes calculated to distribute the original route distance evenly,
+                                without exceeding the maximum distance.
+            - real_route_distance (float): The adjusted distance for each real route, ensuring the total distributed
+                                        distance does not exceed the original route distance.
+        """
+
         # Determine if the route_distance exceeds the max_distance allowed.
         # If it does, calculate the number of real_routes needed and the adjusted distance for each.
         if route_distance > max_distance:

@@ -328,86 +328,70 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
 
 
     def expand_routes_based_on_real_routes(df: pd.DataFrame) -> pd.DataFrame:
-
         """
-        Expands original routes into multiple derived routes based on specified real route counts, applying
-        variations to distances and adjusting start and end times to distribute the original route's duration evenly.
-
-        For each original route, this function creates multiple derived routes ("real routes") if the original
-        route's distance exceeds predefined limits, ensuring that each derived route's distance and duration
-        are proportional to the original. A variation factor is applied to distances to introduce variability,
-        and a scale factor adjusts these varied distances to ensure the total matches the original route's distance.
+        Expands original routes into multiple derived routes based on the number of 'real routes' specified for each.
+        Each derived route has adjusted start and end times to ensure proportional distribution of the total duration
+        across all derived routes, derived from the original route's start and end times. The function also adjusts
+        the distances for each derived route based on their proportional duration to the total, ensuring the sum of
+        distances of derived routes equals the distance of the original route.
 
         Parameters:
-        - df (pd.DataFrame): DataFrame containing original routes. Each row represents a route with fields for
-                            distance ('f_distancia'), initial timestamp ('o_fecha_inicial'), and final timestamp
-                            ('o_fecha_final'), among others.
+        - df (pd.DataFrame): DataFrame containing original routes. Each row must include 'f_distancia' for the route's
+                            distance, 'o_fecha_inicial' for the initial timestamp, and 'o_fecha_final' for the final
+                            timestamp, along with 'real_routes' indicating how many derived routes to create from
+                            the original.
 
         Returns:
-        - pd.DataFrame: A new DataFrame where each original route may be expanded into multiple derived routes.
-                        Each derived route has an adjusted distance and evenly distributed duration, ensuring
-                        the total distance and duration match those of the original route.
+        - pd.DataFrame: A new DataFrame where each original route is expanded into the specified number of derived routes.
+                        Each derived route has adjusted 'o_fecha_inicial' and 'o_fecha_final' to ensure even distribution
+                        of the total original route's duration across all derived routes. The distance ('f_distancia') for
+                        each derived route is also adjusted based on its duration, maintaining the original route's total distance.
 
-        The function introduces variability in the derived routes' distances using a variation factor (randomly
-        between 90% and 110% of the original calculated distance for each route), then applies a scale factor
-        to adjust these distances so their sum equals the original route's total distance. This ensures that
-        while variability is introduced, the overall consistency and integrity of the route data are maintained.
-
-        The scale factor is computed as the ratio of the original route's total distance to the sum of the
-        adjusted distances (after applying the variation factor). This factor is then used to scale each
-        adjusted distance, ensuring the sum of all derived routes' distances precisely matches the original
-        route's distance. The process aims to introduce enough variability to make the derived routes distinct
-        while adhering to the total distance constraint and evenly distributing the original route's duration
-        across the derived routes.
+        The expansion process involves:
+        - Calculating the total duration of the original route.
+        - Generating proportional duration variations for each derived route, ensuring the total duration is preserved.
+        - Adjusting the start ('o_fecha_inicial') and end ('o_fecha_final') times for each derived route based on these durations.
+        - Adjusting the distance ('f_distancia') for each derived route to reflect its proportion of the total duration, ensuring
+        the sum of distances of all derived routes equals the original route's distance.
         """
+        rows_list = []  # Initialize a list to store the newly generated rows for derived routes.
 
-        rows_list = []  # List to store the new rows (routes) generated.
-
+        # Iterate through each row in the DataFrame to process each original route.
         for _, row in df.iterrows():
-            # Calculates the total duration in seconds between the start and end dates of the route.
+            # Calculate the total duration of the original route in seconds.
             total_duration_seconds = (row['o_fecha_final'] - row['o_fecha_inicial']).total_seconds()
-            # Divide the total duration by the number of actual routes to obtain the duration per route.
-            duration_per_route_seconds = total_duration_seconds / row['real_routes']
-
-            # Initializes a list to store the set distances of each derived route.
-            adjusted_distances = []
-            total_adjusted_distance = 0  # Variable to sum the adjusted distances.
-
-            # It generates adjusted distances for each derived route by applying a random variation.
-            for _ in range(int(row['real_routes'])):
-                variation_factor = np.random.uniform(0.9, 1.1)  # Variation factor between -10% and +10%.
-                adjusted_distance = row['real_f_distancia'] * variation_factor
+            num_routes = int(row['real_routes'])  # Number of derived routes to create from the original route.
+            
+            # Generate proportional duration variations for each derived route.
+            duration_variations = np.random.uniform(0.8, 1.2, num_routes)
+            # Normalize the variations so that their sum equals the total duration of the original route.
+            normalized_durations = (duration_variations / duration_variations.sum()) * total_duration_seconds
+            
+            start_time = row['o_fecha_inicial']  # The start time for the first derived route.
+            # Loop through each normalized duration to create a new derived route.
+            for i, duration_seconds in enumerate(normalized_durations):
+                new_row = row.copy()  # Copy the current row to preserve other column values.
+                end_time = start_time + pd.Timedelta(seconds=duration_seconds)  # Calculate end time for this derived route.
                 
-                adjusted_distances.append(adjusted_distance)
-                total_adjusted_distance += adjusted_distance  # Adds the adjusted distance to the total.
-
-            # Calculates a scale factor based on the ratio between the original distance and the sum of the adjusted ones.
-            scale_factor = row['f_distancia'] / total_adjusted_distance
-
-            # Adjust the distances of each derived path using the scale factor and create the new rows.
-            for i, adjusted_distance in enumerate(adjusted_distances):
-                new_row = row.copy()  # Copy the original row to modify it.
-                
-                # Scale the adjusted distance to ensure that the sum of all is equal to the original.
-                new_row['f_distancia'] = adjusted_distance * scale_factor
-                
-                # Adjusts the start and end times for each derived route.
-                start_time = row['o_fecha_inicial'] + pd.Timedelta(seconds=i * duration_per_route_seconds)
-                if i == int(row['real_routes']) - 1:  # Ensures that the last route finishes in the original end time.
-                    end_time = row['o_fecha_final']
-                else:
-                    end_time = start_time + pd.Timedelta(seconds=duration_per_route_seconds)
-                
+                # Update the start and end times for the derived route.
                 new_row['o_fecha_inicial'] = start_time
-                new_row['o_fecha_final'] = end_time
-                
-                rows_list.append(new_row)  # Adds the modified row to the list of new rows.
+                if i == num_routes - 1:
+                    # Ensure the last derived route ends at the same time as the original route's final time.
+                    new_row['o_fecha_final'] = row['o_fecha_final']
+                else:
+                    new_row['o_fecha_final'] = end_time
 
-        # Creates a new DataFrame with all the new rows generated.
-        new_df = pd.DataFrame(rows_list)
-        new_df.reset_index(drop=True, inplace=True)  # Resets the DataFrame index for consistency.
+                # Adjust the distance for the derived route based on its proportion of the total duration.
+                new_row['f_distancia'] = row['f_distancia'] * (duration_seconds / total_duration_seconds)
+                
+                rows_list.append(new_row)  # Add the new row to the list of derived routes.
+                start_time = end_time  # Set the start time for the next derived route to the end time of the current route.
+
+        new_df = pd.DataFrame(rows_list)  # Create a new DataFrame from the list of derived routes.
+        new_df.reset_index(drop=True, inplace=True)  # Reset the index for the new DataFrame.
         
         return new_df
+
 
 
 

@@ -374,10 +374,10 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
 
 
     # Apply function to Dataframe obtained before
-    df_expanded = expand_routes_based_on_real_routes(df)
+    df = expand_routes_based_on_real_routes(df)
 
     # No need to delete original records, since logic does not consider them.
-    print(df_expanded)
+    print(df)
 
     return df
 

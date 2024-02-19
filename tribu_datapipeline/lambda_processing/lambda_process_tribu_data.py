@@ -402,112 +402,6 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
     return df
 
 
-def configure_roda_ids(df, path_id_routes: str):
-
-    """
-    Updates a DataFrame by assigning unique IDs for new routes and then updates a CSV file in an S3 bucket with the new information.
-    This function performs three main tasks:
-    1. Extracts the last ID used from a specified CSV file in S3.
-    2. Creates and assigns new unique IDs for each row in the provided DataFrame starting from the last ID extracted.
-    3. Updates the CSV file in S3 with the new route IDs.
-    Parameters:
-    - df (pd.DataFrame): The DataFrame to be updated with new unique IDs.
-    - path_id_routes (str): The S3 path to the CSV file (e.g., 's3://bucket_name/key') where the last ID is stored and which will be updated.
-    Returns:
-    - pd.DataFrame: The updated DataFrame with a new column 'poderosita_ruta' containing the unique IDs.
-    Note:
-    - This function requires the AWS SDK for Python (Boto3) to interact with S3.
-    - Proper AWS credentials must be configured to use Boto3 functions.
-    """
-
-    def extract_last_ID(s3_path: str) -> int:
-        """
-        Interacts with a CSV file in an S3 bucket to extract the last registered ID in the 'poderosita_ruta' column.
-        Parameters:
-        - s3_path (str): The S3 path of the CSV file (e.g., 's3://bucket_name/key').
-        Returns:
-        - int: The value of the last registered ID, or 100000 if the list is empty or the column does not exist.
-        """
-        existing_data = read_csv_from_s3(s3_path)  # Utiliza la función proporcionada para leer el CSV como una lista de diccionarios
-
-        if not existing_data:
-            return 100000  # Return 100000 if the list is empty.
-
-        existing_df = pd.DataFrame(existing_data)
-
-        if 'poderosita_ruta' in existing_df.columns:
-            existing_df['poderosita_ruta'] = pd.to_numeric(existing_df['poderosita_ruta'], errors='coerce')
-            last_id = existing_df['poderosita_ruta'].max()
-
-            # If last_id is NaN, it means that all values were NaN or the column was empty.
-            if pd.isna(last_id):
-                return 100000
-            else:
-                return int(last_id)
-        else:
-            # If the column 'poderosita_ruta' does not exist, return error
-            logger.error("column poderosita_ruta does not exist")
-            return logger.error("column poderosita_ruta does not exist")
-
-
-    def create_ids(df, last_id):
-        """
-        Adds a new column to the DataFrame named 'poderosita_ruta', starting at last_id + 1 and incrementing by 1 for each subsequent row.
-        Parameters:
-        - df (pd.DataFrame): The DataFrame to which the new column will be added.
-        - last_id (int): The last ID from which to start the new IDs.
-        Returns:
-        - pd.DataFrame: The DataFrame with the new column added.
-        """
-        # Calculates the start for the new column
-        start_id = last_id + 1
-
-        # Creates the sequence of new IDs and assigns it as a new column
-        df['poderosita_ruta'] = range(start_id, start_id + len(df))
-        logger.info("Poderosita id's successfully created...")
-        return df
-
-    def update_csv_in_s3(new_df, s3_path: str):
-        """
-        Updates a CSV file in S3 by appending new rows from new_df, selecting only the 'k_ruta' and 'poderosita_ruta' columns,
-        and renaming 'k_ruta' to 'old_k_route' for the merge.
-        Parameters:
-        - new_df (pd.DataFrame): The DataFrame containing new rows to be added, with columns 'k_ruta', 'poderosita_ruta', and possibly others.
-        - s3_path (str): The S3 path of the CSV file (e.g., 's3://bucket_name/key').
-        """
-        # Extracts the bucket name and path key from S3
-        bucket_name = s3_path.split('/')[2]
-        key = '/'.join(s3_path.split('/')[3:])
-
-        # Reads existing CSV content in S3 as a list of dictionaries
-        existing_data = read_csv_from_s3(s3_path)
-
-        existing_df = pd.DataFrame(existing_data)
-
-        # Select only relevant columns from new_df and rename to align with existing_df
-        new_df_renamed = new_df[['k_ruta', 'poderosita_ruta']].rename(columns={'k_ruta': 'old_k_route'})
-
-        # Combines the existing DataFrame with the new renamed DataFrame.
-        combined_df = pd.concat([existing_df, new_df_renamed], ignore_index=True)
-
-        # Converts the combined DataFrame to CSV
-        csv_buffer = StringIO()
-        combined_df.to_csv(csv_buffer, index=False)
-        csv_content = csv_buffer.getvalue()
-
-        # Configure the S3 client and save the updated DataFrame as CSV in S3.
-        s3_client = boto3.client('s3')
-        s3_client.put_object(Bucket=bucket_name, Key=key, Body=csv_content)
-
-        logger.info("ID of new routes successfully added in id_historic.csv...")
-
-    last_id = extract_last_ID(path_id_routes)
-    df = create_ids(df, last_id)
-    logger.info(f"Last route ID registered is {last_id}, Updating S3 Historic GPS IDs...")
-    update_csv_in_s3(df, path_id_routes)
-    print(df) # Delete after testing
-
-    return df
 
 def add_celo_contract_address(df):
     """
@@ -617,68 +511,22 @@ def get_known_unassigned_devices(routes_missing_celo: pd.DataFrame) -> list:
 
     return known_unassigned_device_list
 
-def delete_records_idhistoric_csv(dataset_type):
-    # Parámetros de conexión a S3
-    bucket_name = 'rodaapp-rappidriverchain'  # Nombre de tu bucket en S3
-    if dataset_type == 'roda':
-        object_key = 'poderosita_ids/roda_id_historic.csv'  # Clave del objeto en S3
-    else:
-        object_key = 'poderosita_ids/guajira_id_historic.csv'
-    # Crea un cliente de S3
-    s3_client = boto3.client('s3')
-    
-    # Obtén el objeto CSV desde S3
-    response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
-    csv_content = response['Body'].read().decode('utf-8')
-
-    # Carga el contenido en un DataFrame de Pandas
-    df = pd.read_csv(StringIO(csv_content))
-
-    # Mantén solo los nombres de las columnas, eliminando los datos
-    df = pd.DataFrame(columns=df.columns)
-    
-    # Convierte el DataFrame actualizado a CSV
-    csv_buffer = StringIO()
-    df.to_csv(csv_buffer, index=False)
-    
-    # Vuelve a subir el CSV a S3, sobrescribiendo el archivo original
-    s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=csv_buffer.getvalue())
-    
-    print("Contenido eliminado, manteniendo los nombres de las columnas.")
-
-
-def agregar_prefijo_y_convertir(valor, prefijo):
-    """Agrega un prefijo al principio del valor dado y luego lo convierte a número."""
-    # Añadir el prefijo y convertir el resultado a string para asegurar que el prefijo se añade correctamente.
-    valor_modificado = str(prefijo) + str(valor)
-    # Intentar convertir el valor modificado de nuevo a un número.
-    # Aquí se asume que quieres convertirlo a un entero, pero podrías cambiar int() por float() si es necesario.
-    try:
-        valor_numerico = int(valor_modificado)
-    except ValueError:
-        # En caso de que la conversión falle, se retorna el valor original o se maneja el error de otra manera.
-        logger.info(f"No se pudo convertir {valor_modificado} a número.")
-        valor_numerico = valor
-    return valor_numerico
-
-def assign_guajira_or_roda_prefix(df, dataset_type):
-    """Modifica la columna 'poderosita_ruta' del DataFrame basado en el dataset_type."""
-    if dataset_type == 'roda':
-        prefijo = '1'
-    elif dataset_type == 'guajira':
-        prefijo = '2'
-    else:
-        raise ValueError("El dataset_type debe ser 'roda' o 'guajira'")
-    
-    # Aplicar la función que añade el prefijo y convierte los valores de nuevo a números.
-    df['poderosita_ruta'] = df['poderosita_ruta'].apply(agregar_prefijo_y_convertir, args=(prefijo,))
-    return df
 
 #----------------DYNAMODB APPROACH-----------------------------
 
 
 
 def create_counter_table():
+    """
+    Creates a DynamoDB table named 'RouteIDCounter' to store and manage an atomic counter for generating unique IDs.
+
+    The table has a single primary key, 'IDType', which is a string. The 'CounterValue' attribute stores the current
+    value of the counter. This function is intended to be run once to set up the necessary infrastructure for ID generation.
+
+    Returns:
+        None
+    """
+
     dynamodb = boto3.resource('dynamodb')
 
     table = dynamodb.create_table(
@@ -707,6 +555,16 @@ def create_counter_table():
 
 
 def create_updated_mapping_table():
+    """
+    Creates or updates a DynamoDB table named 'RouteMappingsUpdated' for storing mappings between 'old_k_route' and 'newID'.
+    This table includes a sort key 'timestamp' to allow storing multiple mappings for the same 'old_k_route'.
+
+    The table is designed with 'old_k_route' as the hash key and 'timestamp' as the range key. This setup enables
+    the storage of historical mapping data over time for each 'old_k_route'.
+
+    Returns:
+        None
+    """
     dynamodb = boto3.resource('dynamodb')
     # Asegúrate de eliminar la tabla existente si estás recreándola
     table = dynamodb.create_table(
@@ -740,34 +598,16 @@ def create_updated_mapping_table():
     print("Table RouteMappingsUpdated has been created or updated.")
 
 
-def create_mapping_table():
-    dynamodb = boto3.resource('dynamodb')
-
-    table = dynamodb.create_table(
-        TableName='RouteMappings',
-        KeySchema=[
-            {
-                'AttributeName': 'old_k_route',
-                'KeyType': 'HASH'  # Clave primaria
-            }
-        ],
-        AttributeDefinitions=[
-            {
-                'AttributeName': 'old_k_route',
-                'AttributeType': 'S'
-            }
-        ],
-        ProvisionedThroughput={
-            'ReadCapacityUnits': 1,
-            'WriteCapacityUnits': 1
-        }
-    )
-
-    table.meta.client.get_waiter('table_exists').wait(TableName='RouteMappings')
-    print("Table RouteMappings has been created.")
-
-
 def initialize_counter():
+    """
+    Initializes the atomic counter in the 'RouteIDCounter' DynamoDB table with a specific starting value.
+    
+    This function sets the counter to 100000. It is intended to be run once after creating the 'RouteIDCounter' table
+    to set the starting point for ID generation.
+
+    Returns:
+        None
+    """
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table('RouteIDCounter')
     
@@ -783,7 +623,18 @@ def initialize_counter():
 
 
 def get_next_id():
-    """Incrementa el contador atómico en DynamoDB y retorna el nuevo ID."""
+    """
+    Increments the atomic counter in the 'RouteIDCounter' DynamoDB table and retrieves the new ID value.
+
+    This function ensures that each call generates a unique, sequential ID by atomically incrementing the counter
+    stored in DynamoDB. It handles any exceptions during the update operation and logs the error.
+
+    Returns:
+        int: The new unique ID generated by incrementing the atomic counter.
+
+    Raises:
+        Exception: If there is an error during the DynamoDB update operation.
+    """
     try:
         dynamodb = boto3.resource('dynamodb')
         table = dynamodb.Table('RouteIDCounter')
@@ -796,36 +647,28 @@ def get_next_id():
         )
         
         new_id = int(response['Attributes']['CounterValue'])
-        logger.info(f"Generated new ID: {new_id}")
-        # Print statement para desarrollo/debugging; remover o comentar en producción
-        print(f"Generated new ID: {new_id}")
         return new_id
     except Exception as e:
         logger.error(f"Error generating new ID: {e}")
         raise
 
-def store_mapping(old_k_route, newID):
-    """Almacena el mapeo entre old_k_route y newID en DynamoDB."""
-    try:
-        dynamodb = boto3.resource('dynamodb')
-        table = dynamodb.Table('RouteMappings')
-        
-        # Asegura que old_k_route se convierta a String
-        old_k_route_str = str(old_k_route)
-
-        table.put_item(
-            Item={
-                'old_k_route': old_k_route_str,
-                'newID': newID  # Asegúrate de que newID también sea del tipo adecuado, probablemente un número.
-            }
-        )
-        logger.info(f"Stored mapping for old_k_route: {old_k_route_str} with newID: {newID}")
-        print(f"Stored mapping for old_k_route: {old_k_route_str} with newID: {newID}")
-    except Exception as e:
-        logger.error(f"Error storing mapping for old_k_route: {old_k_route_str} with newID: {newID} - {e}")
-        raise
-
 def store_mapping_with_sort_key(old_k_route, newID):
+
+    """
+    Stores a mapping between 'old_k_route' and 'newID' in the 'RouteMappingsUpdated' DynamoDB table, including a timestamp.
+
+    This function uses the current timestamp as the sort key to allow multiple entries for the same 'old_k_route'.
+    Each mapping is uniquely identified by 'old_k_route' and 'timestamp', enabling the storage of all generated IDs
+    over time for each route.
+
+    Parameters:
+        old_k_route (str): The original route identifier.
+        newID (int): The new unique ID generated for the route.
+
+    Returns:
+        None
+    """
+    
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table('RouteMappingsUpdated')
     timestamp = datetime.datetime.now().isoformat()  # ISO 8601 format
@@ -840,7 +683,24 @@ def store_mapping_with_sort_key(old_k_route, newID):
     print(f"Stored mapping for old_k_route: {old_k_route} with newID: {newID} and timestamp: {timestamp}")
 
 def configure_roda_ids_dynamo(df):
-    """Asigna nuevos IDs únicos y secuenciales para cada fila en el DataFrame."""
+
+    """
+    Assigns new unique and sequential IDs to each row in the provided DataFrame using the atomic counter from DynamoDB.
+    
+    This function iterates over each row in the DataFrame, generates a new unique ID for each, and stores a mapping
+    between the 'old_k_route' (as 'k_ruta' in the DataFrame) and the new ID. It updates the DataFrame with the new IDs
+    and returns the updated DataFrame.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame to be updated with new unique IDs. It must contain a 'k_ruta' column.
+
+    Returns:
+        pd.DataFrame: The DataFrame updated with a 'newID' column containing the new unique IDs for each row.
+
+    Raises:
+        ValueError: If the 'k_ruta' column does not exist in the DataFrame.
+    """
+
     updated_rows = []
     # Asegúrate de que 'k_ruta' está en el DataFrame, si no, registra un error.
     if 'k_ruta' not in df.columns:
@@ -929,13 +789,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
        split_big_routes = trans_params["split_big_routes"]
        df = apply_split_routes(df, split_big_routes["avg_distance"], split_big_routes["max_distance"])
 
-
-    # create_counter_table()
-    # create_updated_mapping_table()
-    # initialize_counter()
     df = configure_roda_ids_dynamo(df)
-
-    # delete_records_idhistoric_csv(dataset_type)
 
     # Add Celo contract addresses to the DataFrame
     print("After configure_roda_ids_dynamo")

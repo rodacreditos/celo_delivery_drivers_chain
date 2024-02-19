@@ -822,8 +822,6 @@ def handler(event: Dict[str, Any], context: Any) -> None:
 
     logger.info("Preparing output data")
 
-    # df = assign_guajira_or_roda_prefix(df, dataset_type)
-
     # format output and upload it to s3 as a csv file
     print("before format output df")
     print(df)

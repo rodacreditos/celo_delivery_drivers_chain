@@ -59,6 +59,7 @@ from python_utilities.utils import validate_date, read_from_s3, read_yaml_from_s
 from io import StringIO
 import numpy as np
 import boto3
+import datetime
 
 MAXIMUM_DISTANCE = 9000000 # Meters = 9000km
 MINIMUM_DISTANCE = 0
@@ -673,6 +674,194 @@ def assign_guajira_or_roda_prefix(df, dataset_type):
     df['poderosita_ruta'] = df['poderosita_ruta'].apply(agregar_prefijo_y_convertir, args=(prefijo,))
     return df
 
+#----------------DYNAMODB APPROACH-----------------------------
+
+
+
+def create_counter_table():
+    dynamodb = boto3.resource('dynamodb')
+
+    table = dynamodb.create_table(
+        TableName='RouteIDCounter',
+        KeySchema=[
+            {
+                'AttributeName': 'IDType',
+                'KeyType': 'HASH'  # Clave primaria
+            }
+        ],
+        AttributeDefinitions=[
+            {
+                'AttributeName': 'IDType',
+                'AttributeType': 'S'
+            }
+        ],
+        ProvisionedThroughput={
+            'ReadCapacityUnits': 1,
+            'WriteCapacityUnits': 1
+        }
+    )
+
+    table.meta.client.get_waiter('table_exists').wait(TableName='RouteIDCounter')
+    print("Table RouteIDCounter has been created.")
+
+
+
+def create_updated_mapping_table():
+    dynamodb = boto3.resource('dynamodb')
+    # Asegúrate de eliminar la tabla existente si estás recreándola
+    table = dynamodb.create_table(
+        TableName='RouteMappingsUpdated',
+        KeySchema=[
+            {
+                'AttributeName': 'old_k_route',
+                'KeyType': 'HASH'  # Clave de partición
+            },
+            {
+                'AttributeName': 'timestamp',
+                'KeyType': 'RANGE'  # Clave de ordenación
+            }
+        ],
+        AttributeDefinitions=[
+            {
+                'AttributeName': 'old_k_route',
+                'AttributeType': 'S'
+            },
+            {
+                'AttributeName': 'timestamp',
+                'AttributeType': 'S'  # o 'N' si decides usar un valor numérico de timestamp
+            }
+        ],
+        ProvisionedThroughput={
+            'ReadCapacityUnits': 1,
+            'WriteCapacityUnits': 1
+        }
+    )
+    table.meta.client.get_waiter('table_exists').wait(TableName='RouteMappingsUpdated')
+    print("Table RouteMappingsUpdated has been created or updated.")
+
+
+def create_mapping_table():
+    dynamodb = boto3.resource('dynamodb')
+
+    table = dynamodb.create_table(
+        TableName='RouteMappings',
+        KeySchema=[
+            {
+                'AttributeName': 'old_k_route',
+                'KeyType': 'HASH'  # Clave primaria
+            }
+        ],
+        AttributeDefinitions=[
+            {
+                'AttributeName': 'old_k_route',
+                'AttributeType': 'S'
+            }
+        ],
+        ProvisionedThroughput={
+            'ReadCapacityUnits': 1,
+            'WriteCapacityUnits': 1
+        }
+    )
+
+    table.meta.client.get_waiter('table_exists').wait(TableName='RouteMappings')
+    print("Table RouteMappings has been created.")
+
+
+def initialize_counter():
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('RouteIDCounter')
+    
+    # Inicializa el contador con el valor 100000
+    table.put_item(
+        Item={
+            'IDType': 'RouteID',
+            'CounterValue': 100000
+        }
+    )
+    print("Counter initialized to 100000.")
+
+
+
+def get_next_id():
+    """Incrementa el contador atómico en DynamoDB y retorna el nuevo ID."""
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table('RouteIDCounter')
+        
+        response = table.update_item(
+            Key={'IDType': 'RouteID'},
+            UpdateExpression='ADD CounterValue :inc',
+            ExpressionAttributeValues={':inc': 1},
+            ReturnValues='UPDATED_NEW'
+        )
+        
+        new_id = int(response['Attributes']['CounterValue'])
+        logger.info(f"Generated new ID: {new_id}")
+        # Print statement para desarrollo/debugging; remover o comentar en producción
+        print(f"Generated new ID: {new_id}")
+        return new_id
+    except Exception as e:
+        logger.error(f"Error generating new ID: {e}")
+        raise
+
+def store_mapping(old_k_route, newID):
+    """Almacena el mapeo entre old_k_route y newID en DynamoDB."""
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table('RouteMappings')
+        
+        # Asegura que old_k_route se convierta a String
+        old_k_route_str = str(old_k_route)
+
+        table.put_item(
+            Item={
+                'old_k_route': old_k_route_str,
+                'newID': newID  # Asegúrate de que newID también sea del tipo adecuado, probablemente un número.
+            }
+        )
+        logger.info(f"Stored mapping for old_k_route: {old_k_route_str} with newID: {newID}")
+        print(f"Stored mapping for old_k_route: {old_k_route_str} with newID: {newID}")
+    except Exception as e:
+        logger.error(f"Error storing mapping for old_k_route: {old_k_route_str} with newID: {newID} - {e}")
+        raise
+
+def store_mapping_with_sort_key(old_k_route, newID):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('RouteMappingsUpdated')
+    timestamp = datetime.datetime.now().isoformat()  # ISO 8601 format
+
+    table.put_item(
+        Item={
+            'old_k_route': str(old_k_route),  # Asegúrate de que sea un string
+            'newID': newID,
+            'timestamp': timestamp  # Añade el timestamp como sort key
+        }
+    )
+    print(f"Stored mapping for old_k_route: {old_k_route} with newID: {newID} and timestamp: {timestamp}")
+
+def configure_roda_ids_dynamo(df):
+    """Asigna nuevos IDs únicos y secuenciales para cada fila en el DataFrame."""
+    updated_rows = []
+    # Asegúrate de que 'k_ruta' está en el DataFrame, si no, registra un error.
+    if 'k_ruta' not in df.columns:
+        logger.error("Column 'k_ruta' does not exist in DataFrame.")
+        print("Error: Column 'k_ruta' does not exist in DataFrame.")
+        return df  # O maneja el error de manera que prefieras
+    
+    for index, row in df.iterrows():
+        new_id = get_next_id()
+        # Usa el nombre correcto de la columna 'k_ruta'
+        old_k_route = row['k_ruta']
+        store_mapping_with_sort_key(old_k_route, new_id)
+        # Añade el nuevo ID al DataFrame. Asumimos que quieres mantener esta columna como 'newID' o ajusta según sea necesario.
+        row['newID'] = new_id
+        updated_rows.append(row)
+    
+    updated_df = pd.DataFrame(updated_rows)
+    logger.info("Successfully updated DataFrame with new IDs.")
+    return updated_df
+
+#----------------DYNAMODB APPROACH-----------------------------
 
 def handler(event: Dict[str, Any], context: Any) -> None:
     """
@@ -741,11 +930,17 @@ def handler(event: Dict[str, Any], context: Any) -> None:
        df = apply_split_routes(df, split_big_routes["avg_distance"], split_big_routes["max_distance"])
 
 
-    df = configure_roda_ids(df, path_id_routes)
+    # create_counter_table()
+    # create_updated_mapping_table()
+    # initialize_counter()
+    df = configure_roda_ids_dynamo(df)
 
     # delete_records_idhistoric_csv(dataset_type)
 
     # Add Celo contract addresses to the DataFrame
+    print("After configure_roda_ids_dynamo")
+    pd.set_option('display.max_columns', None)
+    print(df)
     df = add_celo_contract_address(df)
 
     # Filter the DataFrame to get only routes that are missing a Celo address
@@ -773,7 +968,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
 
     logger.info("Preparing output data")
 
-    df = assign_guajira_or_roda_prefix(df, dataset_type)
+    # df = assign_guajira_or_roda_prefix(df, dataset_type)
 
     # format output and upload it to s3 as a csv file
     print("before format output df")

@@ -409,14 +409,11 @@ def configure_roda_ids(df, path_id_routes: str):
     1. Extracts the last ID used from a specified CSV file in S3.
     2. Creates and assigns new unique IDs for each row in the provided DataFrame starting from the last ID extracted.
     3. Updates the CSV file in S3 with the new route IDs.
-
     Parameters:
     - df (pd.DataFrame): The DataFrame to be updated with new unique IDs.
     - path_id_routes (str): The S3 path to the CSV file (e.g., 's3://bucket_name/key') where the last ID is stored and which will be updated.
-
     Returns:
     - pd.DataFrame: The updated DataFrame with a new column 'poderosita_ruta' containing the unique IDs.
-
     Note:
     - This function requires the AWS SDK for Python (Boto3) to interact with S3.
     - Proper AWS credentials must be configured to use Boto3 functions.
@@ -425,10 +422,8 @@ def configure_roda_ids(df, path_id_routes: str):
     def extract_last_ID(s3_path: str) -> int:
         """
         Interacts with a CSV file in an S3 bucket to extract the last registered ID in the 'poderosita_ruta' column.
-
         Parameters:
         - s3_path (str): The S3 path of the CSV file (e.g., 's3://bucket_name/key').
-
         Returns:
         - int: The value of the last registered ID, or 100000 if the list is empty or the column does not exist.
         """
@@ -453,15 +448,13 @@ def configure_roda_ids(df, path_id_routes: str):
             logger.error("column poderosita_ruta does not exist")
             return logger.error("column poderosita_ruta does not exist")
 
-    
+
     def create_ids(df, last_id):
         """
         Adds a new column to the DataFrame named 'poderosita_ruta', starting at last_id + 1 and incrementing by 1 for each subsequent row.
-
         Parameters:
         - df (pd.DataFrame): The DataFrame to which the new column will be added.
         - last_id (int): The last ID from which to start the new IDs.
-
         Returns:
         - pd.DataFrame: The DataFrame with the new column added.
         """
@@ -472,12 +465,11 @@ def configure_roda_ids(df, path_id_routes: str):
         df['poderosita_ruta'] = range(start_id, start_id + len(df))
         logger.info("Poderosita id's successfully created...")
         return df
-    
+
     def update_csv_in_s3(new_df, s3_path: str):
         """
         Updates a CSV file in S3 by appending new rows from new_df, selecting only the 'k_ruta' and 'poderosita_ruta' columns,
         and renaming 'k_ruta' to 'old_k_route' for the merge.
-
         Parameters:
         - new_df (pd.DataFrame): The DataFrame containing new rows to be added, with columns 'k_ruta', 'poderosita_ruta', and possibly others.
         - s3_path (str): The S3 path of the CSV file (e.g., 's3://bucket_name/key').
@@ -485,27 +477,27 @@ def configure_roda_ids(df, path_id_routes: str):
         # Extracts the bucket name and path key from S3
         bucket_name = s3_path.split('/')[2]
         key = '/'.join(s3_path.split('/')[3:])
-        
+
         # Reads existing CSV content in S3 as a list of dictionaries
         existing_data = read_csv_from_s3(s3_path)
-        
+
         existing_df = pd.DataFrame(existing_data)
-        
+
         # Select only relevant columns from new_df and rename to align with existing_df
         new_df_renamed = new_df[['k_ruta', 'poderosita_ruta']].rename(columns={'k_ruta': 'old_k_route'})
-        
+
         # Combines the existing DataFrame with the new renamed DataFrame.
         combined_df = pd.concat([existing_df, new_df_renamed], ignore_index=True)
-        
+
         # Converts the combined DataFrame to CSV
         csv_buffer = StringIO()
         combined_df.to_csv(csv_buffer, index=False)
         csv_content = csv_buffer.getvalue()
-        
+
         # Configure the S3 client and save the updated DataFrame as CSV in S3.
         s3_client = boto3.client('s3')
         s3_client.put_object(Bucket=bucket_name, Key=key, Body=csv_content)
-        
+
         logger.info("ID of new routes successfully added in id_historic.csv...")
 
     last_id = extract_last_ID(path_id_routes)
@@ -515,7 +507,6 @@ def configure_roda_ids(df, path_id_routes: str):
     print(df) # Delete after testing
 
     return df
-
 
 def add_celo_contract_address(df):
     """
@@ -625,11 +616,13 @@ def get_known_unassigned_devices(routes_missing_celo: pd.DataFrame) -> list:
 
     return known_unassigned_device_list
 
-def delete_records_idhistoric_csv():
+def delete_records_idhistoric_csv(dataset_type):
     # Parámetros de conexión a S3
     bucket_name = 'rodaapp-rappidriverchain'  # Nombre de tu bucket en S3
-    object_key = 'poderosita_ids/id_historic.csv'  # Clave del objeto en S3
-
+    if dataset_type == 'roda':
+        object_key = 'poderosita_ids/roda_id_historic.csv'  # Clave del objeto en S3
+    else:
+        object_key = 'poderosita_ids/guajira_id_historic.csv'
     # Crea un cliente de S3
     s3_client = boto3.client('s3')
     
@@ -651,6 +644,34 @@ def delete_records_idhistoric_csv():
     s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=csv_buffer.getvalue())
     
     print("Contenido eliminado, manteniendo los nombres de las columnas.")
+
+
+def agregar_prefijo_y_convertir(valor, prefijo):
+    """Agrega un prefijo al principio del valor dado y luego lo convierte a número."""
+    # Añadir el prefijo y convertir el resultado a string para asegurar que el prefijo se añade correctamente.
+    valor_modificado = str(prefijo) + str(valor)
+    # Intentar convertir el valor modificado de nuevo a un número.
+    # Aquí se asume que quieres convertirlo a un entero, pero podrías cambiar int() por float() si es necesario.
+    try:
+        valor_numerico = int(valor_modificado)
+    except ValueError:
+        # En caso de que la conversión falle, se retorna el valor original o se maneja el error de otra manera.
+        logger.info(f"No se pudo convertir {valor_modificado} a número.")
+        valor_numerico = valor
+    return valor_numerico
+
+def assign_guajira_or_roda_prefix(df, dataset_type):
+    """Modifica la columna 'poderosita_ruta' del DataFrame basado en el dataset_type."""
+    if dataset_type == 'roda':
+        prefijo = '1'
+    elif dataset_type == 'guajira':
+        prefijo = '2'
+    else:
+        raise ValueError("El dataset_type debe ser 'roda' o 'guajira'")
+    
+    # Aplicar la función que añade el prefijo y convierte los valores de nuevo a números.
+    df['poderosita_ruta'] = df['poderosita_ruta'].apply(agregar_prefijo_y_convertir, args=(prefijo,))
+    return df
 
 
 def handler(event: Dict[str, Any], context: Any) -> None:
@@ -681,7 +702,19 @@ def handler(event: Dict[str, Any], context: Any) -> None:
                                f"source={event['dataset_type']}", f"tribu_{event['dataset_type']}_routes.csv")
     output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "rappi_driver_routes", f"date={format_dashed_date(processing_date)}",
                                f"source=tribu_{event['dataset_type']}", f"tribu_{event['dataset_type']}_routes.csv")
-    path_id_routes = os.path.join(RODAAPP_BUCKET_PREFIX, "poderosita_ids", "id_historic.csv")
+    
+    dataset_type = event.get("dataset_type")
+
+    # Define los paths para cada tipo de dataset
+    paths_id_routes = {
+        'roda': os.path.join(RODAAPP_BUCKET_PREFIX, "poderosita_ids", "roda_id_historic.csv"),
+        'guajira': os.path.join(RODAAPP_BUCKET_PREFIX, "poderosita_ids", "guajira_id_historic.csv"),
+    }
+
+    # Selecciona el path_id_routes basado en el dataset_type
+    path_id_routes = paths_id_routes.get(dataset_type, "default_path_if_needed")
+
+    # path_id_routes = os.path.join(RODAAPP_BUCKET_PREFIX, "poderosita_ids", "id_historic.csv")
     
     df = read_csv_into_pandas_from_s3(input_path)
 
@@ -703,14 +736,14 @@ def handler(event: Dict[str, Any], context: Any) -> None:
         distance_fix = trans_params["distance_fix"]
         df = fix_distance_by_max_per_hour(df, distance_fix["expected_max_per_hour"])
 
-    # if "split_big_routes" in trans_params:
-    #    split_big_routes = trans_params["split_big_routes"]
-    #    df = apply_split_routes(df, split_big_routes["avg_distance"], split_big_routes["max_distance"])
+    if "split_big_routes" in trans_params:
+       split_big_routes = trans_params["split_big_routes"]
+       df = apply_split_routes(df, split_big_routes["avg_distance"], split_big_routes["max_distance"])
 
 
-    # df = configure_roda_ids(df, path_id_routes)
+    df = configure_roda_ids(df, path_id_routes)
 
-    # delete_records_idhistoric_csv()
+    # delete_records_idhistoric_csv(dataset_type)
 
     # Add Celo contract addresses to the DataFrame
     df = add_celo_contract_address(df)
@@ -739,6 +772,8 @@ def handler(event: Dict[str, Any], context: Any) -> None:
 
 
     logger.info("Preparing output data")
+
+    df = assign_guajira_or_roda_prefix(df, dataset_type)
 
     # format output and upload it to s3 as a csv file
     print("before format output df")

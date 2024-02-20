@@ -555,51 +555,6 @@ def create_counter_table():
     print("Table RouteIDCounter has been created.")
 
 
-
-def create_updated_mapping_table():
-    """
-    Creates or updates a DynamoDB table named 'RouteMappingsUpdated' for storing mappings between 'old_k_route' and 'newID'.
-    This table includes a sort key 'timestamp' to allow storing multiple mappings for the same 'old_k_route'.
-
-    The table is designed with 'old_k_route' as the hash key and 'timestamp' as the range key. This setup enables
-    the storage of historical mapping data over time for each 'old_k_route'.
-
-    Returns:
-        None
-    """
-    dynamodb = boto3.resource('dynamodb')
-    # Asegúrate de eliminar la tabla existente si estás recreándola
-    table = dynamodb.create_table(
-        TableName='RouteMappingsUpdated',
-        KeySchema=[
-            {
-                'AttributeName': 'old_k_route',
-                'KeyType': 'HASH'  # Clave de partición
-            },
-            {
-                'AttributeName': 'timestamp',
-                'KeyType': 'RANGE'  # Clave de ordenación
-            }
-        ],
-        AttributeDefinitions=[
-            {
-                'AttributeName': 'old_k_route',
-                'AttributeType': 'S'
-            },
-            {
-                'AttributeName': 'timestamp',
-                'AttributeType': 'S'  # o 'N' si decides usar un valor numérico de timestamp
-            }
-        ],
-        ProvisionedThroughput={
-            'ReadCapacityUnits': 1,
-            'WriteCapacityUnits': 1
-        }
-    )
-    table.meta.client.get_waiter('table_exists').wait(TableName='RouteMappingsUpdated')
-    print("Table RouteMappingsUpdated has been created or updated.")
-
-
 def initialize_counter():
     """
     Initializes the atomic counter in the 'RouteIDCounter' DynamoDB table with a specific starting value.

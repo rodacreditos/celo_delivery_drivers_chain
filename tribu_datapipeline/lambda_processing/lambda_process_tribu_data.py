@@ -591,6 +591,40 @@ def configure_roda_ids_dynamo(df):
     logger.info("Successfully updated DataFrame with new IDs.")
     return updated_df
 
+def assign_guajira_protos_routes(df: pd.DataFrame, address: str) -> pd.DataFrame:
+    """
+    Assigns a specified address to the 'celo_address' column for rows in a DataFrame
+    where 'k_dispositivo' matches an entry in a predefined list (guajira_protos_list),
+    but only if the 'celo_address' column is currently NaN.
+
+    Parameters:
+    df (pd.DataFrame): The DataFrame to update.
+    address (str): The address to assign to 'celo_address' for matching, unassigned rows.
+
+    Returns:
+    pd.DataFrame: The updated DataFrame with 'celo_address' assigned where applicable.
+    """
+
+    # Log the action of fetching the list of prototype devices.
+    logger.info("Fetching guajira_protos_list...")
+
+    # Construct the path to the YAML file containing the guajira_protos_list.
+    guajira_protos_list_path = os.path.join(RODAAPP_BUCKET_PREFIX, "tribu_metadata", "guajira_protos_list.yaml")
+
+    # Read the list from the YAML file stored in S3 (or another storage service).
+    guajira_protos_list = read_yaml_from_s3(guajira_protos_list_path)
+
+    logger.info(f"listed on guajira protos {guajira_protos_list}")
+
+    # Define a condition where 'k_dispositivo' is in the guajira_protos_list and 'celo_address' is NaN.
+    # This ensures we only target rows that match a device in the list and do not already have an address assigned.
+    condition = df['k_dispositivo'].isin(guajira_protos_list) & pd.isna(df['celo_address'])
+
+    # Use loc[] to update 'celo_address' where the condition is True.
+    df.loc[condition, 'celo_address'] = address
+
+    return df
+
 def handler(event: Dict[str, Any], context: Any) -> None:
     """
     Handler function for processing Tribu data.
@@ -662,6 +696,11 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     # Add Celo contract addresses to the DataFrame
 
     df = add_celo_contract_address(df)
+
+    if "guajira_celo_address" in trans_params:
+        print("entró en guajira protos")
+        guajira_celo_address = trans_params["guajira_celo_address"]
+        df = assign_guajira_protos_routes(df, guajira_celo_address["address"])
 
     # Filter the DataFrame to get only routes that are missing a Celo address
     routes_missing_celo = get_missing_celo_addresses(df)

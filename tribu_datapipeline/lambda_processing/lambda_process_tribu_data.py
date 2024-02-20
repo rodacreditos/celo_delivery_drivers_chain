@@ -324,7 +324,7 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
     original_route_count = len(df)
     extra_routes_added = total_real_routes - original_route_count
 
-    logger.info(f"About to split {extra_routes_added} extra routes...")
+    logger.info(f"Total old_routes: {original_route_count}, Total new_routes: {total_real_routes} About to split {extra_routes_added} extra routes...")
 
 
 
@@ -669,68 +669,32 @@ def get_next_id(max_retries=5, backoff_factor=2):
             logger.error(f"Unexpected error: {e}")
             raise
 
-def store_mapping_with_sort_key(old_k_route, newID):
-
-    """
-    Stores a mapping between 'old_k_route' and 'newID' in the 'RouteMappingsUpdated' DynamoDB table, including a timestamp.
-
-    This function uses the current timestamp as the sort key to allow multiple entries for the same 'old_k_route'.
-    Each mapping is uniquely identified by 'old_k_route' and 'timestamp', enabling the storage of all generated IDs
-    over time for each route.
-
-    Parameters:
-        old_k_route (str): The original route identifier.
-        newID (int): The new unique ID generated for the route.
-
-    Returns:
-        None
-    """
-    
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('RouteMappingsUpdated')
-    timestamp = datetime.datetime.now().isoformat()  # ISO 8601 format
-
-    table.put_item(
-        Item={
-            'old_k_route': str(old_k_route),  # Asegúrate de que sea un string
-            'newID': newID,
-            'timestamp': timestamp  # Añade el timestamp como sort key
-        }
-    )
-    print(f"Stored mapping for old_k_route: {old_k_route} with newID: {newID} and timestamp: {timestamp}")
-
 def configure_roda_ids_dynamo(df):
 
     """
-    Assigns new unique and sequential IDs to each row in the provided DataFrame using the atomic counter from DynamoDB.
-    
-    This function iterates over each row in the DataFrame, generates a new unique ID for each, and stores a mapping
-    between the 'old_k_route' (as 'k_ruta' in the DataFrame) and the new ID. It updates the DataFrame with the new IDs
-    and returns the updated DataFrame.
+    This function iterates over each row in the given DataFrame, assigns a new unique and sequential ID from a DynamoDB atomic counter to each row, and updates the DataFrame with these new IDs. The new ID is stored in a new column named 'newID'. Additionally, the function logs the old route ID ('k_ruta') and the newly assigned ID for traceability and auditing purposes.
+
+    It's essential for the input DataFrame to have a column named 'k_ruta', which is considered the old route ID. The function checks for the existence of this column and proceeds with the ID update process if present. If the 'k_ruta' column is missing, the function logs an error and returns the original DataFrame without modifications.
 
     Parameters:
-        df (pd.DataFrame): The DataFrame to be updated with new unique IDs. It must contain a 'k_ruta' column.
+    - df (pd.DataFrame): The DataFrame to be updated. It must contain a column named 'k_ruta', which represents the old route IDs.
 
     Returns:
-        pd.DataFrame: The DataFrame updated with a 'newID' column containing the new unique IDs for each row.
+    - pd.DataFrame: An updated DataFrame with an additional 'newID' column containing the new unique IDs for each row.
 
     Raises:
-        ValueError: If the 'k_ruta' column does not exist in the DataFrame.
-    """
+    - ValueError: If the 'k_ruta' column does not exist in the DataFrame, a ValueError is raised to indicate the missing column.
 
+    Note:
+    The function relies on an external DynamoDB atomic counter to generate new unique IDs. This external dependency is crucial for ensuring the uniqueness and sequential nature of the route IDs across the dataset.
+    """
     updated_rows = []
-    # Asegúrate de que 'k_ruta' está en el DataFrame, si no, registra un error.
     if 'k_ruta' not in df.columns:
         logger.error("Column 'k_ruta' does not exist in DataFrame.")
-        print("Error: Column 'k_ruta' does not exist in DataFrame.")
-        return df  # O maneja el error de manera que prefieras
+        return df
     
     for index, row in df.iterrows():
         new_id = get_next_id()
-        # Usa el nombre correcto de la columna 'k_ruta'
-        old_k_route = row['k_ruta']
-        store_mapping_with_sort_key(old_k_route, new_id)
-        # Añade el nuevo ID al DataFrame. Asumimos que quieres mantener esta columna como 'newID' o ajusta según sea necesario.
         row['newID'] = new_id
         updated_rows.append(row)
     
@@ -839,6 +803,8 @@ def handler(event: Dict[str, Any], context: Any) -> None:
 
     # format output and upload it to s3 as a csv file
     df = format_output_df(df, column_rename_map, output_datetime_format)
+    logger.info(f"(Pre-export) Total routes ready for export after applying filter_out_known_unassigned_devices: {len(df)}")
+
     upload_pandas_to_s3(output_path, df)
 
     logger.info("FINISHED SUCCESSFULLY: Tribu data processing task")

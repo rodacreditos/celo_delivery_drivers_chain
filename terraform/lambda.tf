@@ -154,8 +154,8 @@ resource "aws_iam_policy" "lambda_dynamodb_access" {
         ],
         Effect = "Allow",
         Resource = [
-          "arn:aws:dynamodb:::table/RouteIDCounter",
-          "arn:aws:dynamodb:::table/RouteMappingsUpdated"
+          "arn:aws:dynamodb:us-east-2:062988117074:table/RouteIDCounter",
+          "arn:aws:dynamodb:us-east-2:062988117074:table/RouteMappingsUpdated"
         ],
       },
     ],

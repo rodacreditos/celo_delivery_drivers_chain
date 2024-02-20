@@ -517,44 +517,6 @@ def get_known_unassigned_devices(routes_missing_celo: pd.DataFrame) -> list:
 #----------------DYNAMODB APPROACH-----------------------------
 
 
-
-def create_counter_table():
-    """
-    Creates a DynamoDB table named 'RouteIDCounter' to store and manage an atomic counter for generating unique IDs.
-
-    The table has a single primary key, 'IDType', which is a string. The 'CounterValue' attribute stores the current
-    value of the counter. This function is intended to be run once to set up the necessary infrastructure for ID generation.
-
-    Returns:
-        None
-    """
-
-    dynamodb = boto3.resource('dynamodb')
-
-    table = dynamodb.create_table(
-        TableName='RouteIDCounter',
-        KeySchema=[
-            {
-                'AttributeName': 'IDType',
-                'KeyType': 'HASH'  # Clave primaria
-            }
-        ],
-        AttributeDefinitions=[
-            {
-                'AttributeName': 'IDType',
-                'AttributeType': 'S'
-            }
-        ],
-        ProvisionedThroughput={
-            'ReadCapacityUnits': 1,
-            'WriteCapacityUnits': 1
-        }
-    )
-
-    table.meta.client.get_waiter('table_exists').wait(TableName='RouteIDCounter')
-    print("Table RouteIDCounter has been created.")
-
-
 def initialize_counter():
     """
     Initializes the atomic counter in the 'RouteIDCounter' DynamoDB table with a specific starting value.

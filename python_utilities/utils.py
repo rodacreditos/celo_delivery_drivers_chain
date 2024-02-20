@@ -96,7 +96,7 @@ def upload_buffer_to_s3(s3_path: str, buff: IOBase) -> None:
     Upload a buffer (like StringIO or BytesIO) to an S3 bucket.
 
     :param s3_path: The S3 path (e.g., 's3://bucket_name/key') where the buffer will be uploaded.
-    :param buff: An IO buffer (StringIO, BytesIO, etc.) containing the data to upload.
+    :param buff: An IO buffer (StringIO, BytesIO, etc.) containing the data to upload. This buffer should support the `.getvalue()` method to extract the data for uploading.
     """
     bucket_name, file_name = split_s3(s3_path)
     s3_client.put_object(
@@ -152,10 +152,46 @@ def read_csv_from_s3(s3_path: str) -> list:
     return [row for row in csv_reader]
 
 
-def dict_to_yaml_s3(data_dict, s3_path):
+def dict_to_yaml_s3(data_dict: dict, s3_path: str) -> None:
+    """
+    Converts a dictionary into YAML format and uploads it to an S3 bucket.
+
+    This function takes a dictionary, converts it to a YAML formatted string,
+    and then uploads the resulting YAML string to a specified path in an AWS S3 bucket.
+    The upload is facilitated by the `upload_buffer_to_s3` function.
+
+    Parameters:
+    - data_dict (dict): The dictionary to convert to YAML and upload.
+    - s3_path (str): The S3 bucket path where the YAML file will be uploaded. 
+      This path should include the bucket name and any desired prefixes.
+
+    Returns:
+    - None
+    """
     with StringIO() as yaml_buffer:
         yaml.dump(data_dict, yaml_buffer)
         upload_buffer_to_s3(s3_path, yaml_buffer)
+
+
+def dict_to_json_s3(data_dict: dict, s3_path: str) -> None:
+    """
+    Converts a dictionary into JSON format and uploads it to an S3 bucket.
+
+    This function takes a dictionary, converts it to a JSON formatted string,
+    and then uploads the resulting JSON string to a specified path in an AWS S3 bucket.
+    The upload is facilitated by the `upload_buffer_to_s3` function.
+
+    Parameters:
+    - data_dict (dict): The dictionary to convert to JSON and upload.
+    - s3_path (str): The S3 bucket path where the JSON file will be uploaded.
+      This path should include the bucket name and any desired prefixes.
+
+    Returns:
+    - None
+    """
+    with StringIO() as json_buffer:
+        json.dump(data_dict, json_buffer)
+        upload_buffer_to_s3(s3_path, json_buffer)
 
 
 def dicts_to_csv(dict_list: list, filepath: str) -> None:
@@ -218,3 +254,23 @@ def yesterday() -> datetime:
     """
     one_day = timedelta(days=1)
     return datetime.now() - one_day
+
+
+def to_unix_timestamp(str_date: str, format: str):
+    """
+    Convert a string representation of a date to a Unix timestamp.
+    
+    Parameters:
+    - str_date (str): The date string to be converted.
+    - format (str): The format of the date string, e.g., '%Y-%m-%d %H:%M:%S'.
+    
+    Returns:
+    - int: The Unix timestamp equivalent of the given date string.
+    """
+    # Parse the string date according to the provided format
+    datetime_obj = datetime.strptime(str_date, format)
+    
+    # Convert the datetime object to a Unix timestamp
+    timestamp = int(datetime_obj.timestamp())
+    
+    return timestamp

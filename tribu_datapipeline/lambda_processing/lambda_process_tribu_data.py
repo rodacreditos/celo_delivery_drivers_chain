@@ -513,34 +513,6 @@ def get_known_unassigned_devices(routes_missing_celo: pd.DataFrame) -> list:
 
     return known_unassigned_device_list
 
-
-#----------------DYNAMODB APPROACH-----------------------------
-
-
-def initialize_counter():
-    """
-    Initializes the atomic counter in the 'RouteIDCounter' DynamoDB table with a specific starting value.
-    
-    This function sets the counter to 100000. It is intended to be run once after creating the 'RouteIDCounter' table
-    to set the starting point for ID generation.
-
-    Returns:
-        None
-    """
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('RouteIDCounter')
-    
-    # Inicializa el contador con el valor 100000
-    table.put_item(
-        Item={
-            'IDType': 'RouteID',
-            'CounterValue': 100000
-        }
-    )
-    print("Counter initialized to 100000.")
-
-
-
 def get_next_id(max_retries=5, backoff_factor=2):
     """
     Increments the atomic counter in the 'RouteIDCounter' DynamoDB table and retrieves the new ID value, with retry logic.
@@ -618,8 +590,6 @@ def configure_roda_ids_dynamo(df):
     updated_df = pd.DataFrame(updated_rows)
     logger.info("Successfully updated DataFrame with new IDs.")
     return updated_df
-
-#----------------DYNAMODB APPROACH-----------------------------
 
 def handler(event: Dict[str, Any], context: Any) -> None:
     """

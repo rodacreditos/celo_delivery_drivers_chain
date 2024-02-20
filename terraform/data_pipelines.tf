@@ -231,3 +231,16 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
 }
 EOF
 }
+
+resource "aws_dynamodb_table" "RouteIDCounter" {
+  name           = "RouteIDCounter"
+  billing_mode   = "PROVISIONED"
+  read_capacity  = 2
+  write_capacity = 2
+  hash_key       = "IDType"
+
+  attribute {
+    name = "IDType"
+    type = "S"
+  }
+}

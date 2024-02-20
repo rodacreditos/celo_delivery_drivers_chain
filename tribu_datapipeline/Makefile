@@ -26,7 +26,7 @@ run_processing:
 	docker run --rm \
 		-v ~/.aws:/root/.aws \
 		-i --entrypoint python rodaapp:tribu_processing \
-		lambda_process_tribu_data.py --dataset-type guajira
+		lambda_process_tribu_data.py --dataset-type roda
 
 build_blockchain_publisher:
 	docker build -t rodaapp:blockchain_publisher -f ./lambda_blockchain_publisher/Dockerfile ../

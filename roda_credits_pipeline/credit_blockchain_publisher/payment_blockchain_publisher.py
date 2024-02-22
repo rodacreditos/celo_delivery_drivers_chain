@@ -37,6 +37,121 @@ from python_utilities.utils import to_unix_timestamp, logger, setup_local_logger
 from credit_blockchain_publisher import fetch_celo_credentials, fetch_contract_info, connect_to_blockchain, \
                                          fetch_airtable_credentials, wait_for_transaction_receipt
 
+# Definiciones de las excepciones
+class PaymentTransactionError(Exception):
+    """Base class for exceptions in this module."""
+    pass
+
+class OverflowError(PaymentTransactionError):
+    """Exception raised when a payment causes overflow."""
+    def __init__(self, message="Panic error 0x11: Arithmetic operation results in underflow or overflow"):
+        self.message = message
+        super().__init__(self.message)
+
+class RevertError(PaymentTransactionError):
+    """Exception raised when the transaction is reverted."""
+    def __init__(self, message="Transaction reverted by the EVM"):
+        self.message = message
+        super().__init__(self.message)
+
+
+def get_outstanding_balance(contract, credit_id):
+    return contract.functions.outstandingBalance(credit_id).call()
+
+def send_transaction_and_update_airtable(web3, contract, account, nonce, payment_details, payments_table, env):
+    """
+    Creates, signs, and sends a transaction to the Celo blockchain, and updates Airtable as needed.
+
+    This function estimates the gas required for the transaction, builds the transaction with the specified parameters,
+    signs it with the provided account, and sends it to the Celo blockchain. It waits for the transaction to be confirmed
+    and updates the payment status in Airtable.
+
+    Parameters:
+    - web3 (Web3): An instance of the Web3 class connected to the Celo blockchain.
+    - contract (Contract): An instance of the smart contract to interact with.
+    - account (Account): The account derived from the mnemonic phrase for signing and sending transactions.
+    - nonce (int): The current nonce of the account for the transaction.
+    - payment_details (dict): A dictionary containing details of the payment, including id_payment, id_credit, amount, and payment_date.
+    - payments_table (Airtable): An instance of the Airtable class to access the payments table.
+    - env (str): The environment context ('staging' or 'production') affecting the publication process.
+
+    Returns:
+    - Tuple[bool, int]: A tuple where the first element is True if the transaction was successful, False otherwise,
+      and the second element is the updated nonce after sending the transaction.
+
+    Raises:
+    - OverflowError: If the transaction causes an overflow error.
+    - RevertError: If the transaction is reverted by the EVM.
+    - PaymentTransactionError: For any other general errors during the transaction processing.
+    """
+    
+    id_payment = payment_details['id_payment']
+    id_credit = payment_details['id_credit']
+    amount = payment_details['amount']
+    payment_date = payment_details['payment_date']
+
+    # Logging the start of transaction process for a payment
+    logger.info(f"Starting transaction for payment: {payment_details}")
+    try:
+        # Estimating gas for the transaction and preparing transaction details
+        logger.debug(f"Estimating gas for the payment transaction ID: {id_payment}")
+
+        estimated_gas = contract.functions.recordPayment(
+            creditId=id_credit,
+            paymentId=id_payment,
+            paymentAmount=amount,
+            paymentDate=payment_date
+        ).estimate_gas({'from': account.address})
+
+        gas_price = web3.eth.gas_price
+
+        # Building the transaction
+        tx = contract.functions.recordPayment(
+            creditId=id_credit,
+            paymentId=id_payment,
+            paymentAmount=amount,
+            paymentDate=payment_date
+        ).build_transaction({
+            'from': account.address,
+            'nonce': nonce,
+            'gas': estimated_gas + 100000,  # margen extra de gas
+            'gasPrice': gas_price
+        })
+
+        # Signing the transaction
+        signed_tx = account.sign_transaction(tx)
+
+        # Sending the transaction
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        logger.info(f"    -> Sent transaction for payment id {id_payment}, awaiting receipt...")
+
+        # Waiting for the transaction to be confirmed
+        tx_receipt = wait_for_transaction_receipt(web3, tx_hash)
+        logger.debug(f"Transaction receipt: {tx_receipt}")
+        if tx_receipt:
+            # Updating Airtable with the payment status
+            set_payment_as_published(payments_table, payment_details['payment_record_id'], env)
+            logger.info(f"    -> Transaction successfully sent: payment id {id_payment}, hash {tx_hash.hex()}")
+            return True , nonce + 1
+        else:
+            logger.error(f"    -> Failed to get receipt for payment id {id_payment}.")
+            return False, nonce
+
+    except Exception as e:
+        error_message = str(e)
+        # Checking for specific error messages and raising custom exceptions accordingly
+        if "Panic error 0x11" in error_message:
+            # Lanza una OverflowError personalizada si se detecta un error de overflow.
+            raise OverflowError("Panic error 0x11: Arithmetic operation results in underflow or overflow.") from e
+        elif "revert" in error_message.lower():
+            # Suponiendo que puedas detectar errores de revert por el mensaje, lanza RevertError.
+            raise RevertError("Transaction reverted by the EVM.") from e
+        else:
+            # Para cualquier otro tipo de error, lanza una PaymentTransactionError genérica.
+            raise PaymentTransactionError("Failed to process payment.") from e
+
+
+
 
 def publish_to_celo(
     web3: Web3, 
@@ -66,21 +181,20 @@ def publish_to_celo(
                  particularly in how the function tracks whether a payment has been published.
 
     Returns:
-    Tuple[bool, int]: A tuple containing two elements:
-        - all_success (bool): Indicates whether all payments were successfully published. True if all transactions
-                              were successful, False otherwise.
-        - count_published_routes (int): The number of payments successfully published to the blockchain.
+    Tuple[bool, int]: 
+        - all_success (bool): True if all transactions were published successfully.
+        - count_published_routes (int): Number of payments published.
 
     Raises:
-    - Exception: If an error occurs during the transaction creation, signing, or submission process, an exception
-                 is raised with a detailed message about the failure.
+    - OverflowError: Occurs when the payment amount exceeds the recipient's outstanding balance. The function handles this error by adjusting the payment amount to the outstanding balance and attempting to republish the transaction. If adjustment and republishing are successful, the payment record is updated accordingly in the Airtable database; otherwise, the function logs the failure and sets `all_success` to False.
+
+    - RevertError: Indicates a transaction has been reverted by the EVM, possibly due to business logic in the smart contract (e.g., payment conditions not met). The function logs the specific reason for the revert and skips the current transaction.
+
+    - PaymentTransactionError: Custom exception indicating issues with transaction submission, such as gas estimation failures or network congestion. The function logs the error details and does not update the payment record in Airtable, allowing for retry.
 
     Notes:
-    - The function uses the 'PublishedToCeloStaging' or 'PublishedToCeloProduction' fields in Airtable to track
-      publication status, updating these fields as payments are processed to ensure idempotency and facilitate
-      error recovery.
-    - Transactions are constructed and signed using the account derived from the provided mnemonic. This requires
-      enabling unaudited HD wallet features in the Web3.py library.
+    - Utilizes 'PublishedToCeloStaging' or 'PublishedToCeloProduction' fields in Airtable to track publication status and ensure idempotency.
+    - Requires enabling unaudited HD wallet features in Web3.py for mnemonic-based account derivation.
     """
     logger.info(f"About to publish {len(payment_records)} transactions...")
     contract = web3.eth.contract(address=contract_address, abi=abi)
@@ -98,93 +212,61 @@ def publish_to_celo(
     
     # Iterate over the data and publish each row to Celo
     for payment in payment_records:
+
+        payment_record_id = payment['id']
+        payment_fields = payment['fields']
+        id_payment = int(payment_fields['ID Pagos'])
+        id_credit = int(payment_fields['ID Credito Nocode'])
+        payment_date = to_unix_timestamp(payment_fields['Fecha de pago'], '%Y-%m-%d')
+        amount = int(payment_fields['MONTO'])
+        is_published_to_celo = payment_fields.get(f'PublishedToCelo{env.capitalize()}', False)
+
+        if is_published_to_celo:
+            logger.info(f"    -> Payment id {id_payment} is already published. Skipping re-publishing.")
+            continue
+
+        payment_details = {
+            'payment_record_id': payment_record_id,
+            'id_payment': id_payment,
+            'id_credit': id_credit,
+            'amount': amount,
+            'payment_date': payment_date
+        }
+
         try:
-            payment_record_id = payment['id']
-            payment_fields = payment['fields']
-            id_payment = int(payment_fields['ID Pagos'])
-            id_credit = int(payment_fields['ID Credito Nocode'])
-            payment_date = to_unix_timestamp(payment_fields['Fecha de pago'], '%Y-%m-%d')
-            amount = int(payment_fields['MONTO'])
-            is_published_to_celo = payment_fields.get(f'PublishedToCelo{env.capitalize()}', False)
-            is_credit_published_to_celo = payment_fields.get(f'CreditPublishedToCelo{env.capitalize()}', [False])[0]
-
-            logger.info(f"Publishing payment id {id_payment}:")
-
-            # Check if the payment has already been published and skip if it has
-            if is_published_to_celo:
-                logger.info(f"    -> Payment id {id_payment} is already published. Skipping re-publishing.")
-                continue
-
-            # Check if the credit has already been published and break publication if not
-            if not is_credit_published_to_celo:
-                logger.info(f"    -> Payment id {id_payment} belongs to credit {id_credit} which is not published to celo yet")
-                logger.info("Please ensure all the credits are already published, before start publishing payments")
-                break
-
-            # Estimate gas for the transaction
-            estimated_gas = contract.functions.recordPayment(
-                                creditId=id_credit,
-                                paymentId=id_payment,
-                                paymentAmount=amount,
-                                paymentDate=payment_date
-                            ).estimate_gas({'from': account.address})
-
-            gas_price = web3.eth.gas_price
-
-            tx = contract.functions.recordPayment(
-                creditId=id_credit,
-                paymentId=id_payment,
-                paymentAmount=amount,
-                paymentDate=payment_date
-            ).build_transaction({
-                'from': account.address,
-                'nonce': nonce,
-                'gas': estimated_gas + 100000,  # extra margin for gas
-                'gasPrice': gas_price
-            })
-
-            # Sign the transaction
-            signed_tx = account.sign_transaction(tx)
-            tx_hash = Web3.keccak(signed_tx.rawTransaction)
-            
-            logger.info(f"    -> with: nonce = {nonce}, gas_price = {gas_price}, and tx_hash = {tx_hash.hex()}")
-
-            # Send the transaction
-            tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            logger.info(f"    -> Sent transaction for payment id {id_payment}, awaiting receipt...")
-
-            # Wait until transaction is successfully receipt
-            time.sleep(2) # wait 2 seconds before verifying transaction receipt
-            tx_receipt = wait_for_transaction_receipt(web3, tx_hash)
-
-            if not tx_receipt:
-                logger.error(f"    -> Failed to get receipt for payment id {id_payment}. Stopping further transactions.")
+            logger.info(f"web3: {web3}, contract: {contract}, account: {account}, nonce: {nonce}, payment_details: {payment_details}, payments_table: {payments_table}, env: {env}")
+            success, nonce = send_transaction_and_update_airtable(web3, contract, account, nonce, payment_details, payments_table, env)
+            if success:
+                count_published_routes += 1
+            else:
                 all_success = False
-                break
+        except OverflowError as oe:
 
-            logger.info(f"    -> Transaction successfully sent: payment id {id_payment}, hash {tx_hash.hex()}")
-            set_payment_as_published(payments_table, payment_record_id, env)
-            count_published_routes += 1
-
-            # Increment the nonce for subsequent transactions
-            nonce += 1
-
-        except Exception as e:
-            error_message = str(e)
-            if "execution reverted" in error_message:
+            logger.info(f"    -> Overflow error recording payment {id_payment} for credit {id_credit}. Adjusting payment to outstanding balance.")
+            print(f"amount to pay before get_oustandingbalance is: {amount}")
+            outstanding_balance = get_outstanding_balance(contract, id_credit)
+            print(f"Outstanding-balance for credit {id_credit} is: {outstanding_balance}")
+            payment_details['amount'] = outstanding_balance
+            try:
+                success, nonce = send_transaction_and_update_airtable(web3, contract, account, nonce, payment_details, payments_table, env)
+                if success:
+                    logger.info(f"    -> Successfully adjusted and published payment id {id_payment}.")
+                    count_published_routes += 1
+                else:
+                    logger.error(f"    -> Failed to adjust and publish payment id {id_payment}.")
+                    all_success = False
+            except Exception as ex:
+                logger.error(f"    -> Error adjusting payment id {id_payment}: {ex}")
+                all_success = False
+        except RevertError as re:
                 logger.info(f"    -> Payment {id_payment} is already published. Continuing with next transaction.")
                 set_payment_as_published(payments_table, payment_record_id, env)
                 count_published_routes += 1
                 continue
-            elif "Arithmetic operation results in underflow or overflow" in error_message:
-                logger.info(f"    -> Issues recording payment {id_payment}. The amount of this payment {amount} "
-                            f"together with other payments for credit {id_credit} overflow the initial debt. "
-                             "Discarding payment and continuing with next transaction.")
-                continue
-            else:
-                logger.error(f"    -> Error publishing payment id {id_payment}")
-                all_success = False
-                raise e
+        except PaymentTransactionError as e:
+            logger.error(f"    -> Error publishing payment id {id_payment}: {e}. See above for more details.")
+            all_success = False
+
 
     return all_success, count_published_routes
 

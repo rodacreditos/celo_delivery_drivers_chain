@@ -206,7 +206,7 @@ Example usage:
 To enhance the processing of data for routes that significantly exceed average distances, we've implemented a feature to automatically split these large routes into smaller, manageable segments. This adjustment not only ensures the realism and accuracy of the route data but also aligns with practical, achievable distances for drivers. Configuration for this feature is set in the transformations_{dataset_type}.yaml file, with parameters specifying the average and maximum distances that dictate the splitting logic.
 
 ## Unique Route IDs via DynamoDB
-Pipeline utilizes DynamoDB to manage the generation of unique and sequential route IDs, ensuring consistency and uniqueness across our datasets. A new table, RouteIDCounter, has been introduced to maintain an atomic counter for ID assignment, with another table, RouteMappingsUpdated, capturing the mappings between old and new route IDs. This approach ensures each route processed is assigned a unique identifier, enhancing data integrity and traceability.
+Pipeline utilizes DynamoDB to manage the generation of unique and sequential route IDs, ensuring consistency and uniqueness across our datasets. A new table, RouteIDCounter, has been introduced to maintain an atomic counter for ID assignment. This approach ensures each route processed is assigned a unique identifier, enhancing data integrity and traceability.
 
 ## Running a Backfill for Tribu Data Pipeline
 

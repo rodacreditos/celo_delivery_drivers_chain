@@ -184,7 +184,10 @@ The YAML files should contain the following sections:
     expected_max_per_hour: 60000 # It is expected that as maximum a motorbike trips for 60km in one hour in Bogota urban zone
   ```
 
-- `split_big_routes`: A list of key-value pairs where maximum distance & average distance must be defined. There are the necessary parameters to split large routes into more realistic and accurate ones.
+- `split_big_routes`: This parameter is designed to divide larger routes into segments that are more manageable and realistic. It requires two key settings:
+    * `max_distance`: The maximum length of a segment before a route is split. This ensures that excessively long routes are broken down into smaller, more accurate segments.
+    * `avg_distance`: The average expected length of each segment. This value is used to determine the optimal number of segments for a given route, aiming for segments that closely match this average distance.
+    These settings help in reconfiguring routes to better reflect realistic travel patterns, enhancing the accuracy of the data analysis.
 
   Example:
   ```yaml

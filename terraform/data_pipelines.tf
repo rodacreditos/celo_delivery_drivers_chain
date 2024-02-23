@@ -233,11 +233,9 @@ EOF
 }
 
 resource "aws_dynamodb_table" "RouteIDCounter" {
-  name           = "RouteIDCounter"
-  billing_mode   = "PROVISIONED"
-  read_capacity  = 2
-  write_capacity = 2
-  hash_key       = "IDType"
+  name         = "RouteIDCounter"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "IDType"
 
   attribute {
     name = "IDType"

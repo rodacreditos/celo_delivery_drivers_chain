@@ -69,7 +69,6 @@ The following AWS services are deployed through the Terraform scripts to support
 The integration of DynamoDB for unique route ID management necessitates the creation of two specific tables:
 
 RouteIDCounter: Manages the atomic counter for generating unique route IDs.
-RouteMappingsUpdated: Stores the mappings between old route IDs and their new unique counterparts, with timestamps to track updates.
 
 
 ## AWS Cost Analysis Report

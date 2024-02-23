@@ -52,11 +52,10 @@ import argparse
 import logging
 import os
 import pandas as pd
-from io import BytesIO
+from io import BytesIO, StringIO
 from typing import Dict, Any
 from python_utilities.utils import validate_date, read_from_s3, read_yaml_from_s3, upload_buffer_to_s3, format_dashed_date, yesterday, logger, \
     				setup_local_logger, RODAAPP_BUCKET_PREFIX, read_csv_from_s3
-from io import StringIO
 import numpy as np
 import boto3
 import datetime
@@ -231,6 +230,121 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
     df.loc[df['f_distancia'] > df['maxExpectedDistance'], 'f_distancia'] = df['maxExpectedDistance']
     return df
 
+def adjust_route_distribution(route_distance, max_distance, avg_distance):
+
+    """
+    Adjusts the distribution of a given route distance to ensure it does not exceed a specified maximum distance,
+    while also considering an average distance for real routes.
+
+    This function calculates the number of real routes required to cover the total route distance without exceeding
+    the maximum allowed distance per route. If the original route distance is greater than the maximum distance,
+    the route is split into several real routes, each with an adjusted distance such that the sum of distances
+    for all real routes equals the original route distance. The adjustment ensures that the distribution of
+    distances is as even as possible, correcting for any excess due to rounding.
+
+    Parameters:
+    - route_distance (float): The total distance of the route that needs adjustment.
+    - max_distance (float): The maximum allowed distance for a single route.
+    - avg_distance (float): The target average distance for real routes, used to calculate the number of real routes.
+
+    Returns:
+    - pd.Series: A Series object containing two elements:
+        - real_routes (int): The number of real routes calculated to distribute the original route distance evenly,
+                            without exceeding the maximum distance.
+        - real_route_distance (float): The adjusted distance for each real route, ensuring the total distributed
+                                    distance does not exceed the original route distance.
+    """
+
+    # Determine if the route_distance exceeds the max_distance allowed.
+    # If it does, calculate the number of real_routes needed and the adjusted distance for each.
+    if route_distance > max_distance:
+        # Calculate the number of real routes by dividing the total route distance by the average distance.
+        real_routes = route_distance // avg_distance
+        # Calculate the real route distance by dividing the total distance by the number of real routes.
+        # This ensures the original distance is evenly distributed across all real routes.
+        real_route_distance = route_distance / real_routes
+    else:
+        # If the route distance does not exceed the max distance, only one route is needed,
+        # and its distance remains the same as the original.
+        real_routes = 1
+        real_route_distance = route_distance
+
+    # Ensure that the total distributed distance across all real routes does not exceed the original route distance.
+    total_distributed_distance = real_route_distance * real_routes
+    if total_distributed_distance > route_distance:
+        # If the total distributed distance exceeds the original distance (due to rounding),
+        # adjust the distance of the last route to correct any excess.
+        real_route_distance -= (total_distributed_distance - route_distance) / real_routes
+    # Return a Series containing the number of real routes and the adjusted distance for each route.
+    return pd.Series([real_routes, real_route_distance], index=['real_routes', 'real_f_distancia'])
+
+
+def expand_routes_based_on_real_routes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Expands original routes into multiple derived routes based on the number of 'real routes' specified for each.
+    Each derived route has adjusted start and end times to ensure proportional distribution of the total duration
+    across all derived routes, derived from the original route's start and end times. The function also adjusts
+    the distances for each derived route based on their proportional duration to the total, ensuring the sum of
+    distances of derived routes equals the distance of the original route.
+
+    Parameters:
+    - df (pd.DataFrame): DataFrame containing original routes. Each row must include 'f_distancia' for the route's
+                        distance, 'o_fecha_inicial' for the initial timestamp, and 'o_fecha_final' for the final
+                        timestamp, along with 'real_routes' indicating how many derived routes to create from
+                        the original.
+
+    Returns:
+    - pd.DataFrame: A new DataFrame where each original route is expanded into the specified number of derived routes.
+                    Each derived route has adjusted 'o_fecha_inicial' and 'o_fecha_final' to ensure even distribution
+                    of the total original route's duration across all derived routes. The distance ('f_distancia') for
+                    each derived route is also adjusted based on its duration, maintaining the original route's total distance.
+
+    The expansion process involves:
+    - Calculating the total duration of the original route.
+    - Generating proportional duration variations for each derived route, ensuring the total duration is preserved.
+    - Adjusting the start ('o_fecha_inicial') and end ('o_fecha_final') times for each derived route based on these durations.
+    - Adjusting the distance ('f_distancia') for each derived route to reflect its proportion of the total duration, ensuring
+    the sum of distances of all derived routes equals the original route's distance.
+    """
+    rows_list = []  # Initialize a list to store the newly generated rows for derived routes.
+
+    # Iterate through each row in the DataFrame to process each original route.
+    for _, row in df.iterrows():
+        # Calculate the total duration of the original route in seconds.
+        total_duration_seconds = (row['o_fecha_final'] - row['o_fecha_inicial']).total_seconds()
+        num_routes = int(row['real_routes'])  # Number of derived routes to create from the original route.
+        
+        # Generate proportional duration variations for each derived route.
+        duration_variations = np.random.uniform(0.8, 1.2, num_routes)
+        # Normalize the variations so that their sum equals the total duration of the original route.
+        normalized_durations = (duration_variations / duration_variations.sum()) * total_duration_seconds
+        
+        start_time = row['o_fecha_inicial']  # The start time for the first derived route.
+        # Loop through each normalized duration to create a new derived route.
+        for i, duration_seconds in enumerate(normalized_durations):
+            new_row = row.copy()  # Copy the current row to preserve other column values.
+            end_time = start_time + pd.Timedelta(seconds=duration_seconds)  # Calculate end time for this derived route.
+            
+            # Update the start and end times for the derived route.
+            new_row['o_fecha_inicial'] = start_time
+            if i == num_routes - 1:
+                # Ensure the last derived route ends at the same time as the original route's final time.
+                new_row['o_fecha_final'] = row['o_fecha_final']
+            else:
+                new_row['o_fecha_final'] = end_time
+
+            # Adjust the distance for the derived route based on its proportion of the total duration.
+            new_row['f_distancia'] = row['f_distancia'] * (duration_seconds / total_duration_seconds)
+            
+            rows_list.append(new_row)  # Add the new row to the list of derived routes.
+            start_time = end_time  # Set the start time for the next derived route to the end time of the current route.
+
+    new_df = pd.DataFrame(rows_list)  # Create a new DataFrame from the list of derived routes.
+    new_df.reset_index(drop=True, inplace=True)  # Reset the index for the new DataFrame.
+    
+    return new_df
+
+
 def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = float) -> pd.DataFrame:
 
     """
@@ -268,54 +382,7 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
 
     logger.info("Splitting routes...")
 
-    def adjust_route_distribution(route_distance, max_distance, avg_distance):
-
-        """
-        Adjusts the distribution of a given route distance to ensure it does not exceed a specified maximum distance,
-        while also considering an average distance for real routes.
-
-        This function calculates the number of real routes required to cover the total route distance without exceeding
-        the maximum allowed distance per route. If the original route distance is greater than the maximum distance,
-        the route is split into several real routes, each with an adjusted distance such that the sum of distances
-        for all real routes equals the original route distance. The adjustment ensures that the distribution of
-        distances is as even as possible, correcting for any excess due to rounding.
-
-        Parameters:
-        - route_distance (float): The total distance of the route that needs adjustment.
-        - max_distance (float): The maximum allowed distance for a single route.
-        - avg_distance (float): The target average distance for real routes, used to calculate the number of real routes.
-
-        Returns:
-        - pd.Series: A Series object containing two elements:
-            - real_routes (int): The number of real routes calculated to distribute the original route distance evenly,
-                                without exceeding the maximum distance.
-            - real_route_distance (float): The adjusted distance for each real route, ensuring the total distributed
-                                        distance does not exceed the original route distance.
-        """
-
-        # Determine if the route_distance exceeds the max_distance allowed.
-        # If it does, calculate the number of real_routes needed and the adjusted distance for each.
-        if route_distance > max_distance:
-            # Calculate the number of real routes by dividing the total route distance by the average distance.
-            real_routes = route_distance // avg_distance
-            # Calculate the real route distance by dividing the total distance by the number of real routes.
-            # This ensures the original distance is evenly distributed across all real routes.
-            real_route_distance = route_distance / real_routes
-        else:
-            # If the route distance does not exceed the max distance, only one route is needed,
-            # and its distance remains the same as the original.
-            real_routes = 1
-            real_route_distance = route_distance
-
-        # Ensure that the total distributed distance across all real routes does not exceed the original route distance.
-        total_distributed_distance = real_route_distance * real_routes
-        if total_distributed_distance > route_distance:
-            # If the total distributed distance exceeds the original distance (due to rounding),
-            # adjust the distance of the last route to correct any excess.
-            real_route_distance -= (total_distributed_distance - route_distance) / real_routes
-        # Return a Series containing the number of real routes and the adjusted distance for each route.
-        return pd.Series([real_routes, real_route_distance], index=['real_routes', 'real_f_distancia'])
-
+    
     # Apply function to each row
     df[['real_routes', 'real_f_distancia']] = df['f_distancia'].apply(lambda x: adjust_route_distribution(x, max_distance, avg_distance))
 
@@ -325,76 +392,6 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
     extra_routes_added = total_real_routes - original_route_count
 
     logger.info(f"Total old_routes: {original_route_count}, Total new_routes: {total_real_routes} About to split {extra_routes_added} extra routes...")
-
-
-
-    def expand_routes_based_on_real_routes(df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Expands original routes into multiple derived routes based on the number of 'real routes' specified for each.
-        Each derived route has adjusted start and end times to ensure proportional distribution of the total duration
-        across all derived routes, derived from the original route's start and end times. The function also adjusts
-        the distances for each derived route based on their proportional duration to the total, ensuring the sum of
-        distances of derived routes equals the distance of the original route.
-
-        Parameters:
-        - df (pd.DataFrame): DataFrame containing original routes. Each row must include 'f_distancia' for the route's
-                            distance, 'o_fecha_inicial' for the initial timestamp, and 'o_fecha_final' for the final
-                            timestamp, along with 'real_routes' indicating how many derived routes to create from
-                            the original.
-
-        Returns:
-        - pd.DataFrame: A new DataFrame where each original route is expanded into the specified number of derived routes.
-                        Each derived route has adjusted 'o_fecha_inicial' and 'o_fecha_final' to ensure even distribution
-                        of the total original route's duration across all derived routes. The distance ('f_distancia') for
-                        each derived route is also adjusted based on its duration, maintaining the original route's total distance.
-
-        The expansion process involves:
-        - Calculating the total duration of the original route.
-        - Generating proportional duration variations for each derived route, ensuring the total duration is preserved.
-        - Adjusting the start ('o_fecha_inicial') and end ('o_fecha_final') times for each derived route based on these durations.
-        - Adjusting the distance ('f_distancia') for each derived route to reflect its proportion of the total duration, ensuring
-        the sum of distances of all derived routes equals the original route's distance.
-        """
-        rows_list = []  # Initialize a list to store the newly generated rows for derived routes.
-
-        # Iterate through each row in the DataFrame to process each original route.
-        for _, row in df.iterrows():
-            # Calculate the total duration of the original route in seconds.
-            total_duration_seconds = (row['o_fecha_final'] - row['o_fecha_inicial']).total_seconds()
-            num_routes = int(row['real_routes'])  # Number of derived routes to create from the original route.
-            
-            # Generate proportional duration variations for each derived route.
-            duration_variations = np.random.uniform(0.8, 1.2, num_routes)
-            # Normalize the variations so that their sum equals the total duration of the original route.
-            normalized_durations = (duration_variations / duration_variations.sum()) * total_duration_seconds
-            
-            start_time = row['o_fecha_inicial']  # The start time for the first derived route.
-            # Loop through each normalized duration to create a new derived route.
-            for i, duration_seconds in enumerate(normalized_durations):
-                new_row = row.copy()  # Copy the current row to preserve other column values.
-                end_time = start_time + pd.Timedelta(seconds=duration_seconds)  # Calculate end time for this derived route.
-                
-                # Update the start and end times for the derived route.
-                new_row['o_fecha_inicial'] = start_time
-                if i == num_routes - 1:
-                    # Ensure the last derived route ends at the same time as the original route's final time.
-                    new_row['o_fecha_final'] = row['o_fecha_final']
-                else:
-                    new_row['o_fecha_final'] = end_time
-
-                # Adjust the distance for the derived route based on its proportion of the total duration.
-                new_row['f_distancia'] = row['f_distancia'] * (duration_seconds / total_duration_seconds)
-                
-                rows_list.append(new_row)  # Add the new row to the list of derived routes.
-                start_time = end_time  # Set the start time for the next derived route to the end time of the current route.
-
-        new_df = pd.DataFrame(rows_list)  # Create a new DataFrame from the list of derived routes.
-        new_df.reset_index(drop=True, inplace=True)  # Reset the index for the new DataFrame.
-        
-        return new_df
-
-
-
 
     # Apply function to Dataframe obtained before
     df = expand_routes_based_on_real_routes(df)
@@ -621,12 +618,6 @@ def handler(event: Dict[str, Any], context: Any) -> None:
                                f"source=tribu_{event['dataset_type']}", f"tribu_{event['dataset_type']}_routes.csv")
     
     dataset_type = event.get("dataset_type")
-
-    # Define los paths para cada tipo de dataset
-    paths_id_routes = {
-        'roda': os.path.join(RODAAPP_BUCKET_PREFIX, "poderosita_ids", "roda_id_historic.csv"),
-        'guajira': os.path.join(RODAAPP_BUCKET_PREFIX, "poderosita_ids", "guajira_id_historic.csv"),
-    }
 
     # Selecciona el path_id_routes basado en el dataset_type
     path_id_routes = paths_id_routes.get(dataset_type, "default_path_if_needed")

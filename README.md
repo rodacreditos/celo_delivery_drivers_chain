@@ -191,10 +191,9 @@ The YAML files should contain the following sections:
 
   Example:
   ```yaml
-    split_big_routes:
-    max_distance: 4200 # mts
-    avg_distance: 2000 # mts
-  ```
+  split_big_routes:
+    max_distance: 4200 # Maximum distance in meters before splitting a route.
+    avg_distance: 2000 # Target average distance in meters for each route segment.
 
 Ensure these parameters are correctly configured to meet the specific needs of the data processing script.
 

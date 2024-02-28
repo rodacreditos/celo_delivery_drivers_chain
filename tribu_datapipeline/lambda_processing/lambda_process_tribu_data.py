@@ -276,7 +276,7 @@ def adjust_route_distribution(route_distance, max_distance, avg_distance):
         # adjust the distance of the last route to correct any excess.
         real_route_distance -= (total_distributed_distance - route_distance) / real_routes
     # Return a Series containing the number of real routes and the adjusted distance for each route.
-    return pd.Series([real_routes, real_route_distance], index=['real_routes', 'real_f_distancia'])
+    return real_routes
 
 
 def expand_routes_based_on_real_routes(df: pd.DataFrame) -> pd.DataFrame:
@@ -384,7 +384,7 @@ def apply_split_routes(df: pd.DataFrame, avg_distance = float, max_distance = fl
 
     
     # Apply function to each row
-    df[['real_routes', 'real_f_distancia']] = df['f_distancia'].apply(lambda x: adjust_route_distribution(x, max_distance, avg_distance))
+    df['real_routes'] = df['f_distancia'].apply(lambda x: adjust_route_distribution(x, max_distance, avg_distance))
 
     # Computing numbers...
     total_real_routes = df['real_routes'].sum()
@@ -650,13 +650,6 @@ def handler(event: Dict[str, Any], context: Any) -> None:
                                f"source={event['dataset_type']}", f"tribu_{event['dataset_type']}_routes.csv")
     output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "rappi_driver_routes", f"date={format_dashed_date(processing_date)}",
                                f"source=tribu_{event['dataset_type']}", f"tribu_{event['dataset_type']}_routes.csv")
-    
-    dataset_type = event.get("dataset_type")
-
-    # Selecciona el path_id_routes basado en el dataset_type
-    path_id_routes = paths_id_routes.get(dataset_type, "default_path_if_needed")
-
-    # path_id_routes = os.path.join(RODAAPP_BUCKET_PREFIX, "poderosita_ids", "id_historic.csv")
     
     df = read_csv_into_pandas_from_s3(input_path)
 

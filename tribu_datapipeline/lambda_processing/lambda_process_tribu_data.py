@@ -555,7 +555,7 @@ def get_next_id(max_retries=5, backoff_factor=2):
             logger.error(f"Unexpected error: {e}")
             raise
 
-def configure_roda_ids_dynamo(df):
+def assign_dynamodb_ids_to_dataframe(df):
 
     """
     This function iterates over each row in the given DataFrame, assigns a new unique and sequential ID from a DynamoDB atomic counter to each row, and updates the DataFrame with these new IDs. The new ID is stored in a new column named 'newID'. Additionally, the function logs the old route ID ('k_ruta') and the newly assigned ID for traceability and auditing purposes.

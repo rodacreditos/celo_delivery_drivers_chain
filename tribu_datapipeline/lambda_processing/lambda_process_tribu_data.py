@@ -682,7 +682,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
         split_big_routes = trans_params["split_big_routes"]
         df = apply_split_routes(df, split_big_routes["avg_distance"], split_big_routes["max_distance"])
 
-    df = configure_roda_ids_dynamo(df)
+    df = assign_dynamodb_ids_to_dataframe(df)
 
     # Add Celo contract addresses to the DataFrame
 

@@ -58,7 +58,6 @@ from python_utilities.utils import validate_date, read_from_s3, read_yaml_from_s
     				setup_local_logger, RODAAPP_BUCKET_PREFIX
 import numpy as np
 import boto3
-import datetime
 import time
 from botocore.exceptions import ClientError
 

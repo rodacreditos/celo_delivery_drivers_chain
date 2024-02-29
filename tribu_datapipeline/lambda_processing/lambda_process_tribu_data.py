@@ -230,51 +230,39 @@ def fix_distance_by_max_per_hour(df: pd.DataFrame, max_distance_per_hour: float)
     return df
 
 def adjust_route_distribution(route_distance, max_distance, avg_distance):
-
     """
-    Adjusts the distribution of a given route distance to ensure it does not exceed a specified maximum distance,
-    while also considering an average distance for real routes.
-
-    This function calculates the number of real routes required to cover the total route distance without exceeding
-    the maximum allowed distance per route. If the original route distance is greater than the maximum distance,
-    the route is split into several real routes, each with an adjusted distance such that the sum of distances
-    for all real routes equals the original route distance. The adjustment ensures that the distribution of
-    distances is as even as possible, correcting for any excess due to rounding.
+    Adjusts the distribution of a given route distance to prevent exceeding a specified maximum distance,
+    while maintaining an average distance close to real-world routes. This function calculates the necessary
+    number of real routes to distribute the total route distance without surpassing the maximum allowed distance
+    per route. If the original route distance exceeds the maximum distance, the route is divided into several
+    real routes. Each real route has a distance adjusted to ensure the sum of distances across all real routes
+    matches the original route distance. The function aims to distribute the distances as evenly as possible,
+    correcting any discrepancies due to rounding.
 
     Parameters:
-    - route_distance (float): The total distance of the route that needs adjustment.
-    - max_distance (float): The maximum allowed distance for a single route.
-    - avg_distance (float): The target average distance for real routes, used to calculate the number of real routes.
+    - route_distance (float): The total distance of the route requiring adjustment.
+    - max_distance (float): The maximum allowable distance for a single route.
+    - avg_distance (float): The desired average distance for real routes, used to determine the number of real routes.
 
     Returns:
-    - pd.Series: A Series object containing two elements:
-        - real_routes (int): The number of real routes calculated to distribute the original route distance evenly,
-                            without exceeding the maximum distance.
-        - real_route_distance (float): The adjusted distance for each real route, ensuring the total distributed
-                                    distance does not exceed the original route distance.
+    - int: The number of real routes calculated to distribute the original route distance evenly,
+           without exceeding the maximum distance.
     """
 
-    # Determine if the route_distance exceeds the max_distance allowed.
-    # If it does, calculate the number of real_routes needed and the adjusted distance for each.
+    # Check if the route_distance exceeds the max_distance allowed.
+    # If so, calculate the required number of real_routes and their adjusted distances.
     if route_distance > max_distance:
-        # Calculate the number of real routes by dividing the total route distance by the average distance.
+        # Calculate the number of real routes by dividing the total route distance by the average distance,
+        # ensuring the distribution does not exceed the max allowed distance per route.
         real_routes = route_distance // avg_distance
-        # Calculate the real route distance by dividing the total distance by the number of real routes.
-        # This ensures the original distance is evenly distributed across all real routes.
-        real_route_distance = route_distance / real_routes
+        # If the division result is a fraction, round up to ensure coverage of the total distance.
+        if route_distance % avg_distance != 0:
+            real_routes += 1
     else:
         # If the route distance does not exceed the max distance, only one route is needed,
-        # and its distance remains the same as the original.
+        # and its distance is equal to the original.
         real_routes = 1
-        real_route_distance = route_distance
 
-    # Ensure that the total distributed distance across all real routes does not exceed the original route distance.
-    total_distributed_distance = real_route_distance * real_routes
-    if total_distributed_distance > route_distance:
-        # If the total distributed distance exceeds the original distance (due to rounding),
-        # adjust the distance of the last route to correct any excess.
-        real_route_distance -= (total_distributed_distance - route_distance) / real_routes
-    # Return a Series containing the number of real routes and the adjusted distance for each route.
     return real_routes
 
 

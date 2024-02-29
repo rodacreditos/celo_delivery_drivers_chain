@@ -17,7 +17,7 @@ resource "aws_lambda_function" "tribu_processing" {
 
   role    = aws_iam_role.lambda_exec_role.arn
 
-  timeout = 600  # Timeout in seconds (current value is 10 minutes)
+  timeout = 900  # Timeout in seconds (current value is 10 minutes)
 }
 
 resource "aws_lambda_function" "gps_to_celo_map_sync" {
@@ -136,6 +136,31 @@ resource "aws_iam_policy" "lambda_s3_access" {
   })
 }
 
+resource "aws_iam_policy" "lambda_dynamodb_access" {
+  name        = "LambdaDynamoDBAccessPolicy"
+  description = "Allow Lambda function to access DynamoDB"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:DeleteItem"
+        ],
+        Effect = "Allow",
+        Resource = [
+          "arn:aws:dynamodb:us-east-2:062988117074:table/RouteIDCounter",
+        ],
+      },
+    ],
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "lambda_s3_attach" {
   role       = aws_iam_role.lambda_exec_role.name
   policy_arn = aws_iam_policy.lambda_s3_access.arn
@@ -144,4 +169,9 @@ resource "aws_iam_role_policy_attachment" "lambda_s3_attach" {
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.lambda_exec_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_dynamodb_attach" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = aws_iam_policy.lambda_dynamodb_access.arn
 }

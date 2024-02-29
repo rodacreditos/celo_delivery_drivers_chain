@@ -231,3 +231,4 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
 }
 EOF
 }
+

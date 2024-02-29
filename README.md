@@ -65,6 +65,12 @@ The following AWS services are deployed through the Terraform scripts to support
   - [AWS Step Functions](https://docs.aws.amazon.com/step-functions/)
   - [AWS Glue Catalog](https://docs.aws.amazon.com/glue/)
 
+## DynamoDB Tables for Route Management
+The integration of DynamoDB for unique route ID management necessitates the creation of two specific tables:
+
+RouteIDCounter: Manages the atomic counter for generating unique route IDs.
+
+
 ## AWS Cost Analysis Report
 
 This section provides an overview of the estimated costs for our AWS infrastructure, specifically focusing on Lambda functions for extraction and processing, AWS Step Functions, Athena queries, and the AWS Glue Data Catalog. These estimates are based on current usage patterns and AWS pricing as of April 2023.
@@ -148,7 +154,7 @@ The YAML files should contain the following sections:
   Example:
   ```yaml
   column_rename_map:
-    k_ruta: routeID
+    newID: routeID
     k_dispositivo: gpsID
     o_fecha_inicial: timestampStart
     o_fecha_final: timestampEnd
@@ -177,6 +183,17 @@ The YAML files should contain the following sections:
     expected_max_per_hour: 60000 # It is expected that as maximum a motorbike trips for 60km in one hour in Bogota urban zone
   ```
 
+- `split_big_routes`: This parameter is designed to divide larger routes into segments that are more manageable and realistic. It requires two key settings:
+    * `max_distance`: The maximum length of a segment before a route is split. This ensures that excessively long routes are broken down into smaller, more accurate segments.
+    * `avg_distance`: The average expected length of each segment. This value is used to determine the optimal number of segments for a given route, aiming for segments that closely match this average distance.
+    These settings help in reconfiguring routes to better reflect realistic travel patterns, enhancing the accuracy of the data analysis.
+
+  Example:
+  ```yaml
+  split_big_routes:
+    max_distance: 4200 # Maximum distance in meters before splitting a route.
+    avg_distance: 2000 # Target average distance in meters for each route segment.
+
 Ensure these parameters are correctly configured to meet the specific needs of the data processing script.
 
 ### Optional `processing_date` Parameter for Scripts
@@ -184,6 +201,12 @@ Both the extraction and processing scripts accept an optional parameter named `p
 
 Example usage:
 - When running a backfill or if you need to process data for a specific date, you can pass the `processing_date` parameter to the scripts.
+
+## Splitting Large Routes
+To enhance the processing of data for routes that significantly exceed average distances, we've implemented a feature to automatically split these large routes into smaller, manageable segments. This adjustment not only ensures the realism and accuracy of the route data but also aligns with practical, achievable distances for drivers. Configuration for this feature is set in the transformations_{dataset_type}.yaml file, with parameters specifying the average and maximum distances that dictate the splitting logic.
+
+## Unique Route IDs via DynamoDB
+Pipeline utilizes DynamoDB to manage the generation of unique and sequential route IDs, ensuring consistency and uniqueness across our datasets. A new table, RouteIDCounter, has been introduced to maintain an atomic counter for ID assignment. This approach ensures each route processed is assigned a unique identifier, enhancing data integrity and traceability.
 
 ## Running a Backfill for Tribu Data Pipeline
 

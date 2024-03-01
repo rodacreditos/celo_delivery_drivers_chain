@@ -27,3 +27,6 @@ upload_roda_celo_credentials: roda_celo_credentials.yaml
 
 upload_tribu_known_unassigned_divices: tribu_known_unassigned_divices.yaml
 	aws s3 cp ./tribu_known_unassigned_divices.yaml s3://rodaapp-rappidriverchain/tribu_metadata/
+
+update_guajira_protos_yaml: guajira_protos_list.yaml
+	aws s3 cp ./guajira_protos_list.yaml s3://rodaapp-rappidriverchain/tribu_metadata/

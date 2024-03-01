@@ -17,7 +17,7 @@ from python_utilities.utils import read_json_from_s3, RODAAPP_BUCKET_PREFIX
 if __name__ == "__main__":
     # Connect to the Celo Alfajores node
     provider_url = "https://alfajores-forno.celo-testnet.org"
-    celo_contracts = read_json_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, f"credentials/roda_celo_contracts_staging.json"))
+    celo_contracts = read_json_from_s3(os.path.join(RODAAPP_BUCKET_PREFIX, f"credentials/roda_routes_contract_staging.json"))
     contract_address = celo_contracts['RODA_ROUTE_CONTRACT_ADDR']
     contract_abi = celo_contracts['RODA_ROUTE_CONTRACT_ABI']
 

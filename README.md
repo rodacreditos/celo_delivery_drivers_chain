@@ -1,7 +1,10 @@
 # RappiDriverChain: Roda's Data Pipeline for Rappi Driver Data
 
+
 ## Introduction
-This repository contains the implementation of Roda's advanced data pipeline system, designed to handle GPS and operational data from Rappi drivers. It's engineered for efficient data collection, processing, and maintaining data and operational integrity.
+RappiDriverChain is a sophisticated data pipeline system built for processing GPS routes from Tribu API. These routes, originating from GPS devices installed in e-bikes and motorbikes, are primarily used by Rappi drivers. The key objective of this pipeline is to evaluate the risk associated with providing loans to these drivers, based on metrics like the number of routes per day, aggregated time per day, and aggregated distance traveled per day.
+
+The pipeline leverages Python and Pandas for data processing, web3py for interacting with the Celo blockchain platform, and a robust AWS tech stack for deploying Lambda functions and a Step Function state machine to orchestrate pipeline execution.
 
 ## System Architecture
 The architecture utilizes AWS services to automate data extraction, transformation, storage, and monitoring. It includes AWS Lambda, Amazon S3, and Step Functions for managing parallel processing workflows.
@@ -30,7 +33,9 @@ To update Lambda functions and Docker images:
 The following AWS services are deployed through the Terraform scripts to support the data pipeline:
 
 ### Lambda Functions
-- **`extract_tribu_data` and `process_tribu_data`**: These functions handle the extraction and processing of data, respectively. They're deployed as Docker images to AWS Lambda.
+- **`extract_tribu_data` and `process_tribu_data`**: These functions handle the extraction and processing of data, respectively. They're deployed as Docker images to AWS ECR.
+- **GPS to Celo Map Sync**: This Lambda function connects to the Roda's database (Airtable) to retrieve contacts data and their assigned GPS. It generates a map from GPS to Celo addresses. For contacts without a Celo address, the script randomly generates an address and updates the contact table in Airtable.
+- **Blockchain Publisher**: This script takes the output from the processing task and publishes these routes on the Celo blockchain.
 
 ### IAM Roles and Policies
 - **Lambda Execution Role (`lambda_exec_role`)**: A role for the Lambda functions, allowing them to assume necessary permissions.
@@ -59,6 +64,12 @@ The following AWS services are deployed through the Terraform scripts to support
   - [Amazon CloudWatch Events](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/)
   - [AWS Step Functions](https://docs.aws.amazon.com/step-functions/)
   - [AWS Glue Catalog](https://docs.aws.amazon.com/glue/)
+
+## DynamoDB Tables for Route Management
+The integration of DynamoDB for unique route ID management necessitates the creation of two specific tables:
+
+RouteIDCounter: Manages the atomic counter for generating unique route IDs.
+
 
 ## AWS Cost Analysis Report
 
@@ -105,7 +116,7 @@ This section provides an overview of the estimated costs for our AWS infrastruct
 
 ---
 
-For more detailed information or updates to this cost analysis, please refer to our internal documentation or contact the project's system administrators.
+For more detailed information or updates to this cost analysis, please contact the project's system administrators.
 
 ## Data Extraction and Processing
 
@@ -136,13 +147,14 @@ The processing script extracts transformation parameters from YAML files stored 
 The YAML files should contain the following sections:
 
 **Mandatory Parameters:**
-- `input_datetime_format`: The format of datetime fields in the input data.
-- `output_datetime_format`: The desired format of datetime fields in the output data.
+- `input_datetime_format`: The format of datetime fields in the input data. It supports python date format codes.
+- `output_datetime_format`: The desired format of datetime fields in the output data. It supports python date format codes and aditionaly it also support `unix` as an option, which converts datetime fields into Unix timestamp format (seconds since January 1, 1970).
 - `column_rename_map`: A list of key-value pairs, where the key is the original column name, and the value is the new name after transformation. The order in this map determines the order of the columns in the output CSV. Only the columns listed in `column_rename_map` will be included in the output.
 
   Example:
   ```yaml
   column_rename_map:
+    newID: routeID
     k_dispositivo: gpsID
     o_fecha_inicial: timestampStart
     o_fecha_final: timestampEnd
@@ -163,6 +175,25 @@ The YAML files should contain the following sections:
     min: 147
   ```
 
+- `distance_fix`: When this parameter is defined, it will correct the distance values in the dataset. Must define `expected_max_per_hour`, which is the maximum distance expected to be traveled by a vehicule within one hour.
+
+  Example:
+  ```yaml
+  distance_fix:
+    expected_max_per_hour: 60000 # It is expected that as maximum a motorbike trips for 60km in one hour in Bogota urban zone
+  ```
+
+- `split_big_routes`: This parameter is designed to divide larger routes into segments that are more manageable and realistic. It requires two key settings:
+    * `max_distance`: The maximum length of a segment before a route is split. This ensures that excessively long routes are broken down into smaller, more accurate segments.
+    * `avg_distance`: The average expected length of each segment. This value is used to determine the optimal number of segments for a given route, aiming for segments that closely match this average distance.
+    These settings help in reconfiguring routes to better reflect realistic travel patterns, enhancing the accuracy of the data analysis.
+
+  Example:
+  ```yaml
+  split_big_routes:
+    max_distance: 4200 # Maximum distance in meters before splitting a route.
+    avg_distance: 2000 # Target average distance in meters for each route segment.
+
 Ensure these parameters are correctly configured to meet the specific needs of the data processing script.
 
 ### Optional `processing_date` Parameter for Scripts
@@ -171,7 +202,20 @@ Both the extraction and processing scripts accept an optional parameter named `p
 Example usage:
 - When running a backfill or if you need to process data for a specific date, you can pass the `processing_date` parameter to the scripts.
 
+## Splitting Large Routes
+To enhance the processing of data for routes that significantly exceed average distances, we've implemented a feature to automatically split these large routes into smaller, manageable segments. This adjustment not only ensures the realism and accuracy of the route data but also aligns with practical, achievable distances for drivers. Configuration for this feature is set in the transformations_{dataset_type}.yaml file, with parameters specifying the average and maximum distances that dictate the splitting logic.
+
+## Unique Route IDs via DynamoDB
+Pipeline utilizes DynamoDB to manage the generation of unique and sequential route IDs, ensuring consistency and uniqueness across our datasets. A new table, RouteIDCounter, has been introduced to maintain an atomic counter for ID assignment. This approach ensures each route processed is assigned a unique identifier, enhancing data integrity and traceability.
+
 ## Running a Backfill for Tribu Data Pipeline
+
+Backfilling is occasionally necessary in our data pipeline for several reasons:
+
+- **Extraction Script Backfill**: When issues with the Tribu API data are identified and subsequently resolved, we re-run the extraction scripts to retrieve the corrected data.
+- **Processing Script Backfill**: As we refine the processing logic and output format, we frequently re-run the processing scripts to ensure the data meets our updated requirements. Each execution requires a fresh GPS to Celo address mapping.
+- **Blockchain Publisher Script Backfill**: We perform backfills for this script when deploying new contracts or if certain routes were missed in previous publications. This ensures all relevant routes are published to the Celo blockchain.
+- **Mapping GPS to Celo Address Backfill**: When we do any amend regarless assigning or updating GPS Ids to a contact in Airtable database, we need to run again the GPS to Celo Address Synchronization script.
 
 #### Specifying `processing_date` in Backfill
 For running a backfill, the `processing_date` can be specified as follows:
@@ -221,6 +265,10 @@ This organization of data in S3 ensures ease of access and clear separation betw
 - `extracting` pushes data to the `tribu_data` bucket prefix.
 - `processing` stores transformed data in the `rappi_driver_routes` bucket prefix.
 
+## Data Storage and Lifecycle Policy
+
+As of now, we do not have a lifecycle policy in place for our S3 files. However, implementing such a policy will be considered in the near future to efficiently manage data storage and costs.
+
 ## Data Querying and Analysis Tools
 
 ### AWS Glue Catalog - `routes` Table
@@ -228,3 +276,14 @@ This organization of data in S3 ensures ease of access and clear separation betw
 - **Table**: `routes`
 - **Data Source**: The `routes` table is populated from data stored at `s3://rodaapp-rappidriverchain/rappi_driver_routes/`, which contains the processed data.
 - **Usage**: Accessible through Amazon Athena and Trino Visual Editor for advanced data analytics and visualization.
+
+## Repository Structure and New Projects
+
+The repository structure has been reorganized and expanded to include two additional projects:
+
+- **ScoringModel**: Developed by another team member, this project is now part of this repository to facilitate the sharing of Python utilities and Terraform scripts.
+- **Contract Deployment for Routes**: A JavaScript project designed to build, publish, and verify a new contract for routes on the Celo blockchain. This activity is primarily a one-time deployment unless there is a need to restart route publications from scratch.
+
+## Repository Access
+
+Please note that this is a private repository for Roda. Access to this repository is restricted to authorized personnel and collaborators within the organization.

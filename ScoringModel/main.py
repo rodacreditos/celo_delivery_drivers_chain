@@ -2,10 +2,12 @@ import pandas as pd
 import numpy as np
 import os
 import sys
+import logging
+
 sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba en la jerarquía
 
 from api_airtable import get_table_Airtable
-from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
+from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX, logger, setup_local_logger
 from social_score import afectaciones_por_referidos
 # Constantes
 
@@ -227,11 +229,12 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     :return: Transformed DataFrames.
     """
 
+    logger.info("Cleaning data...")
+
     # Conversión de tipos de datos y limpieza
     DF_contactos['Numero de creditos REAL'] = pd.to_numeric(DF_contactos['Numero de creditos REAL'])
     DF_contactos['Promedio monto créditos'] = DF_contactos['Promedio monto créditos'].apply(replace_dict_with_empty)
     DF_contactos['Promedio monto créditos'] = pd.to_numeric(DF_contactos['Promedio monto créditos'])
-    print("imprimiendo en transformar datos")
     DF_contactos['ID Referidor Nocode'] = pd.to_numeric(DF_contactos['ID Referidor Nocode'], errors='coerce')
 
     DF_solicitud_credito['Días mora/atraso promedio'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso promedio'], errors='coerce')
@@ -240,10 +243,6 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     DF_solicitud_credito['# Acuerdos FECHA cumplido copy'] = pd.to_numeric(DF_solicitud_credito['# Acuerdos FECHA cumplido copy'])
     DF_solicitud_credito['Cantidad acuerdos'] = pd.to_numeric(DF_solicitud_credito['Cantidad acuerdos'])
     
-    print(DF_solicitud_credito.loc[1298, ['Fecha desembolso', 'ID CRÉDITO']])
-
-    #print(DF_solicitud_credito['Fecha desembolso'].apply(type).value_counts())
-
     DF_solicitud_credito['Fecha desembolso'] = pd.to_datetime(DF_solicitud_credito['Fecha desembolso'], errors='coerce', format='%d/%m/%Y') # Ajusta el formato según sea necesario
     DF_solicitud_credito['Días de atraso'] = pd.to_numeric(DF_solicitud_credito['Días de atraso'], errors= 'coerce')
 
@@ -355,7 +354,7 @@ def handler(event, context):
     :return: A response dictionary with status and result.
     """
 
-    print("inicio procesamiento handler")
+    logger.info("Starting execution...")
 
     try:
         df_contactos_procesados, df_creditos_procesados = run(personal_access_token)
@@ -367,19 +366,19 @@ def handler(event, context):
         # Guarda el DataFrame en un archivo Excel en el directorio actual
         df_contactos_procesados.to_excel(nombre_archivo, index=False)
         df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
-        print(f"Procesamiento completado con {len(df_contactos_procesados)} registros.")
+        logger.info(f"Scoring calculado completamente con {len(df_contactos_procesados)} clientes.")
         print(df_contactos_procesados)
         return {
             'statusCode': 200,
             'body': 'Procesamiento completado exitosamente.'
         }
     except Exception as e:
-        print(f"Error durante el procesamiento: {e}")
+        logger.error(f"Error durante el procesamiento: {e}")
         return {
             'statusCode': 500,  
             'body': 'Error durante el procesamiento.'
         }
-    print("Procesamiento completado handler")
+    
 # Script principal
 
 if __name__ == '__main__':
@@ -389,7 +388,7 @@ if __name__ == '__main__':
     
     Executes the script directly and simulates an AWS Lambda event.
     """
-    print("entró a main")
+    setup_local_logger()
 
     # Simular un evento Lambda. Puedes modificar esto según tus necesidades.
     fake_lambda_event = {

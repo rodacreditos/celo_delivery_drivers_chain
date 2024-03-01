@@ -5,7 +5,7 @@ import sys
 sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba en la jerarquía
 
 from api_airtable import get_table_Airtable
-from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
+from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX, logger
 
 
 
@@ -51,7 +51,7 @@ def calcular_ajustes(id_referidor, df_contacto, UMBRAL_BONUS, INCREMENTO_POR_REF
     referido_perdido = 'FALSO'
     referidos_con_atraso = 0
     info_referidos = []  # Lista para almacenar información de cada referido
-    print(f"Calculando ajustes para el referidor {id_referidor}, {len(referidos)} referidos en proceso")
+    # print(f"Calculando ajustes para el referidor {id_referidor}, {len(referidos)} referidos en proceso")
 
     # Contar referidos con 'Último Días de Atraso' > 0 y recopilar información
     for _, referido in referidos.iterrows():
@@ -65,7 +65,7 @@ def calcular_ajustes(id_referidor, df_contacto, UMBRAL_BONUS, INCREMENTO_POR_REF
 
     # Calcular el porcentaje de referidos con atraso
     porcentaje_con_atraso = (referidos_con_atraso / len(referidos)) if referidos.shape[0] > 0 else 0
-    print(f"Porcentaje con atraso: {porcentaje_con_atraso}, Referido perdido: {referido_perdido}")
+    # print(f"Porcentaje con atraso: {porcentaje_con_atraso}, Referido perdido: {referido_perdido}")
 
     for referido in info_referidos:
         if referido_perdido == 'VERDADERO':
@@ -115,6 +115,8 @@ def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO,
     con créditos perdidos, lo cual impacta directamente en su puntaje final ajustado.
     """
 
+    logger.info("Computing social score...")
+
     # Convertir ID a float64 y limpiar NaN
     df_contacto['ID CLIENTE'] = pd.to_numeric(df_contacto['ID CLIENTE'], errors='coerce').astype('float64')
     df_credito['ID Cliente nocode'] = pd.to_numeric(df_credito['ID Cliente nocode'], errors='coerce').astype('float64')
@@ -143,12 +145,16 @@ def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO,
     # Validar créditos en proceso
     df_contacto = validacion_creditos_en_proceso(df_contacto, df_credito)
 
+    
     # Aplicar ajustes y almacenar información de referidos
     for id_cliente in df_contacto['ID CLIENTE'].unique():
         ajuste_calculado, referido_perdido, info_referidos = calcular_ajustes(id_cliente, df_contacto, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS)
         df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Ajuste_calculado'] = ajuste_calculado
         df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'REFERIDO_Perdido'] = referido_perdido
         df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Info_Referidos'] = str(info_referidos)
+
+
+    logger.info("Ajustes aplicados exitosamente...")
 
     # Calcular Puntaje_Final_Ajustado
     df_contacto['Puntaje_Final_Ajustado'] = df_contacto.apply(
@@ -159,6 +165,8 @@ def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO,
 
     # Asegurar que el puntaje final ajustado esté en el rango de 0 a 1000
     df_contacto['Puntaje_Final_Ajustado'] = df_contacto['Puntaje_Final_Ajustado'].clip(lower=0, upper=1000)
+
+    logger.info("Puntaje final actualizado existosamente...")
 
     return df_contacto
 

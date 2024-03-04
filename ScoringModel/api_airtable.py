@@ -1,6 +1,8 @@
 from airtable import Airtable
 import pandas as pd
 import numpy as np
+from python_utilities.utils import logger
+
 
 def get_table_Airtable(table_name1, personal_access_token,base_key, fields=None, view_name=None):
 
@@ -27,7 +29,7 @@ def get_table_Airtable(table_name1, personal_access_token,base_key, fields=None,
     if view_name:
         params['view'] = view_name
 
-    print("Obteniendo registros...")
+    logger.info(f"Obteniendo registros de tabla {table_name}...")
     records = airtable.get_all(**params)
     # Convierte los registros en una lista de diccionarios
     records_dict = [record['fields'] for record in records]

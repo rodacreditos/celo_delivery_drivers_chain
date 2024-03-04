@@ -55,7 +55,7 @@ def calcular_ajustes(id_referidor, df_contacto, UMBRAL_BONUS, INCREMENTO_POR_REF
 
     # Contar referidos con 'Último Días de Atraso' > 0 y recopilar información
     for _, referido in referidos.iterrows():
-        info_referido = {'ID CLIENTE': referido['ID CLIENTE'], 'Puntaje_Final': referido['Puntaje_Final'], 'Último Días de Atraso': referido.get('Último Días de Atraso', 0)}
+        info_referido = {'ID CLIENTE': referido['ID CLIENTE'], 'Puntaje_Final': referido['Puntaje_Final'], 'Último Días de Atraso': referido.get('Último Días de Atraso', 0),'Tiene Credito Perdido': referido['Tiene Credito Perdido'] }
         if info_referido['Último Días de Atraso'] > 0:
             referidos_con_atraso += 1
         if 'Tiene Credito Perdido' in referido and referido['Tiene Credito Perdido'] == True:  # Asumiendo que 'Tiene Credito Perdido' es una columna en df_contacto
@@ -79,7 +79,7 @@ def calcular_ajustes(id_referidor, df_contacto, UMBRAL_BONUS, INCREMENTO_POR_REF
 
 
 
-def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS):
+def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS, PARAM_POR_PERDIDO):
     """
     Ajusta los puntajes finales de los clientes en base a la condición de sus referidos,
     considerando créditos en proceso, días de atraso, y si algún referido ha perdido un crédito.
@@ -115,58 +115,84 @@ def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO,
     con créditos perdidos, lo cual impacta directamente en su puntaje final ajustado.
     """
 
-    logger.info("Computing social score...")
+    try:
+        logger.info("Computing social score...")
 
-    # Convertir ID a float64 y limpiar NaN
-    df_contacto['ID CLIENTE'] = pd.to_numeric(df_contacto['ID CLIENTE'], errors='coerce').astype('float64')
-    df_credito['ID Cliente nocode'] = pd.to_numeric(df_credito['ID Cliente nocode'], errors='coerce').astype('float64')
-    df_contacto['ID Referidor Nocode'] = pd.to_numeric(df_contacto['ID Referidor Nocode'], errors='coerce')
-    df_contacto.dropna(subset=['ID CLIENTE'], inplace=True)
-    df_credito.dropna(subset=['ID Cliente nocode'], inplace=True)
+        # Asegura que los IDs se manejen correctamente y limpia valores NaN
+        df_contacto['ID CLIENTE'] = pd.to_numeric(df_contacto['ID CLIENTE'], errors='coerce').astype('float64')
+        df_credito['ID Cliente nocode'] = pd.to_numeric(df_credito['ID Cliente nocode'], errors='coerce').astype('float64')
+        df_contacto['ID Referidor Nocode'] = pd.to_numeric(df_contacto['ID Referidor Nocode'], errors='coerce')
+        df_contacto.dropna(subset=['ID CLIENTE'], inplace=True)
+        df_credito.dropna(subset=['ID Cliente nocode'], inplace=True)
 
-    # Añadimos la columna 'REFERIDOR_Perdido' con un valor default 'FALSO'
-    df_contacto['REFERIDOR_Perdido'] = 'FALSO'
+        # ----------Sección verificar si REFERIDOR del cliente está perdido-----------------
+        df_contacto['REFERIDOR_Perdido'] = 'FALSO'
+        df_contacto['Afectado_x_red'] = 'FALSO'
 
-    for index, row in df_contacto.iterrows():
-        id_referidor = row['ID Referidor Nocode']
-        
-        # Manejo de excepción para cuando no hay un referidor o el ID está vacío
-        if pd.isna(id_referidor):
-            continue  # No se realiza ninguna acción, el valor default 'FALSO' permanece
-
-        # Consulta para encontrar al referidor
-        referidor = df_contacto[df_contacto['ID CLIENTE'] == id_referidor]
-        
-        # Verificación y asignación basada en la existencia de crédito perdido
-        if not referidor.empty and referidor.iloc[0]['Tiene Credito Perdido']:
-            df_contacto.at[index, 'REFERIDOR_Perdido'] = 'VERDADERO'
-
+        for index, row in df_contacto.iterrows():
+            id_referidor = row['ID Referidor Nocode']
             
-    # Validar créditos en proceso
-    df_contacto = validacion_creditos_en_proceso(df_contacto, df_credito)
+            # Manejo de excepción para cuando no hay un referidor o el ID está vacío
+            if pd.isna(id_referidor):
+                continue  # No se realiza ninguna acción, el valor default 'FALSO' permanece
 
-    
-    # Aplicar ajustes y almacenar información de referidos
-    for id_cliente in df_contacto['ID CLIENTE'].unique():
-        ajuste_calculado, referido_perdido, info_referidos = calcular_ajustes(id_cliente, df_contacto, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS)
-        df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Ajuste_calculado'] = ajuste_calculado
-        df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'REFERIDO_Perdido'] = referido_perdido
-        df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Info_Referidos'] = str(info_referidos)
+            # Consulta para encontrar al referidor
+            referidor = df_contacto[df_contacto['ID CLIENTE'] == id_referidor]
+            
+            # Verificación y asignación basada en la existencia de crédito perdido
+            if not referidor.empty and referidor.iloc[0]['Tiene Credito Perdido']:
+                print(f"Referidor {id_referidor} Perdido del cliente {row['ID CLIENTE']} ")
+                df_contacto.at[index, 'REFERIDOR_Perdido'] = 'VERDADERO'
+
+                
+        # ---------Sección Validar créditos en proceso-----------------
+        df_contacto = validacion_creditos_en_proceso(df_contacto, df_credito)
+
+        
+        # Aplicar ajustes y almacenar información de referidos
+        for id_cliente in df_contacto['ID CLIENTE'].unique():
+            ajuste_calculado, referido_perdido, info_referidos = calcular_ajustes(id_cliente, df_contacto, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS)
+            
+
+            df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'REFERIDO_Perdido'] = referido_perdido
+            df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Info_Referidos'] = str(info_referidos)
+
+            # Si se encuentra que un referido está perdido, ajustar a todos los demás referidos del cliente
+            if referido_perdido == 'VERDADERO':
+                for referido in info_referidos:
+                    id_referido = referido['ID CLIENTE']
+                    # Asegúrate de no aplicar el ajuste al referido perdido
+                    if df_contacto.loc[df_contacto['ID CLIENTE'] == id_referido, 'REFERIDO_Perdido'].item() != 'VERDADERO':
+                        
+                        df_contacto.loc[df_contacto['ID CLIENTE'] == id_referido, 'Ajuste_calculado'] = PARAM_POR_PERDIDO
+                        df_contacto.loc[df_contacto['ID CLIENTE'] == id_referido, 'Afectado_x_red'] = 'VERDADERO'
+                        print(f"Cliente {id_referido} Afectado x red porque algún referido de {id_cliente} está perdido, Ajuste_calculado = {row['Ajuste_calculado']}")
+            else:
+                # Aplica el ajuste calculado originalmente si no hay referidos perdidos
+                df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Ajuste_calculado'] = ajuste_calculado
 
 
-    logger.info("Ajustes aplicados exitosamente...")
+            # df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Ajuste_calculado'] = ajuste_calculado
 
-    # Calcular Puntaje_Final_Ajustado
-    df_contacto['Puntaje_Final_Ajustado'] = df_contacto.apply(
-        lambda row: 0 if row['REFERIDO_Perdido'] == 'VERDADERO' or row['Tiene Credito Perdido'] == True 
-        else row['Puntaje_Final'] + row['Puntaje_Final'] * row['Ajuste_calculado'],
-        axis=1
-    )
 
-    # Asegurar que el puntaje final ajustado esté en el rango de 0 a 1000
-    df_contacto['Puntaje_Final_Ajustado'] = df_contacto['Puntaje_Final_Ajustado'].clip(lower=0, upper=1000)
 
-    logger.info("Puntaje final actualizado existosamente...")
+        logger.info("Ajustes aplicados exitosamente...")
+
+        # Calcular Puntaje_Final_Ajustado
+        df_contacto['Puntaje_Final_Ajustado'] = df_contacto.apply(
+            lambda row: 0 if row['REFERIDO_Perdido'] == 'VERDADERO' or row['Tiene Credito Perdido'] == True  or row['REFERIDOR_Perdido'] == 'VERDADERO'
+            else row['Puntaje_Final'] + row['Puntaje_Final'] * row['Ajuste_calculado'],
+            axis=1
+        )
+
+        # Asegurar que el puntaje final ajustado esté en el rango de 0 a 1000
+        df_contacto['Puntaje_Final_Ajustado'] = df_contacto['Puntaje_Final_Ajustado'].clip(lower=0, upper=1000)
+
+        logger.info("Puntaje final actualizado existosamente...")
+
+    except Exception as e:
+        logger.error(f"Error en la función afectaciones_por_referidos: {str(e)}")
+        raise e
 
     return df_contacto
 

@@ -46,6 +46,7 @@ nombre_archivo = "DF_contactos.xlsx"
 INCREMENTO_POR_REFERIDO = 0.05  # 10% de incremento por cada referido que cumpla la condición
 DECREMENTO_POR_REFERIDO = 0.1
 UMBRAL_BONUS = 0.2
+PARAM_POR_PERDIDO = -0.5
 
 
 # Functions
@@ -328,7 +329,7 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedi
     DF_contactos['Puntaje_Final'] = DF_contactos.apply(aplicar_calculo, axis=1)
 
 
-    DF_contactos = afectaciones_por_referidos(DF_contactos, DF_solicitud_credito, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS)
+    DF_contactos = afectaciones_por_referidos(DF_contactos, DF_solicitud_credito, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS, PARAM_POR_PERDIDO)
     print(DF_contactos)
     return DF_contactos
 

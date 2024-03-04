@@ -78,6 +78,24 @@ def calcular_ajustes(id_referidor, df_contacto, UMBRAL_BONUS, INCREMENTO_POR_REF
     return ajuste_calculado, referido_perdido, info_referidos
 
 
+def get_info_referido(id_referidor, df_contacto, UMBRAL_BONUS, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO):
+    # Filtrar referidos que tienen "Créditos en Proceso" = 'VERDADERO'
+    referidos = df_contacto[(df_contacto['ID Referidor Nocode'] == id_referidor) & (df_contacto['Créditos en Proceso'] == 'VERDADERO')]
+    ajuste_calculado = 0
+    referido_perdido = 'FALSO'
+    referidos_con_atraso = 0
+    info_referidos = []  # Lista para almacenar información de cada referido
+    # print(f"Calculando ajustes para el referidor {id_referidor}, {len(referidos)} referidos en proceso")
+
+    # Contar referidos con 'Último Días de Atraso' > 0 y recopilar información
+    for _, referido in referidos.iterrows():
+        info_referido = {'ID CLIENTE': referido['ID CLIENTE'], 'Puntaje_Final': referido['Puntaje_Final'], 'Último Días de Atraso': referido.get('Último Días de Atraso', 0),'Tiene Credito Perdido': referido['Tiene Credito Perdido'] }
+        info_referidos.append(info_referido)
+
+
+    return info_referidos
+
+
 
 def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS, PARAM_POR_PERDIDO):
     """
@@ -151,30 +169,26 @@ def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO,
         
         # Aplicar ajustes y almacenar información de referidos
         for id_cliente in df_contacto['ID CLIENTE'].unique():
-            ajuste_calculado, referido_perdido, info_referidos = calcular_ajustes(id_cliente, df_contacto, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS)
-            
+            info_referidos_update = get_info_referido(id_cliente, df_contacto, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS)
+            df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Info_Referidos'] = str(info_referidos_update)
 
-            df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'REFERIDO_Perdido'] = referido_perdido
-            df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Info_Referidos'] = str(info_referidos)
+            info_referidos_str = df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Info_Referidos'].iat[0]
 
-            # Si se encuentra que un referido está perdido, ajustar a todos los demás referidos del cliente
-            if referido_perdido == 'VERDADERO':
-                for referido in info_referidos:
-                    id_referido = referido['ID CLIENTE']
-                    # Asegúrate de no aplicar el ajuste al referido perdido
-                    if df_contacto.loc[df_contacto['ID CLIENTE'] == id_referido, 'REFERIDO_Perdido'].item() != 'VERDADERO':
-                        
-                        df_contacto.loc[df_contacto['ID CLIENTE'] == id_referido, 'Ajuste_calculado'] = PARAM_POR_PERDIDO
-                        df_contacto.loc[df_contacto['ID CLIENTE'] == id_referido, 'Afectado_x_red'] = 'VERDADERO'
-                        print(f"Cliente {id_referido} Afectado x red porque algún referido de {id_cliente} está perdido, Ajuste_calculado = {row['Ajuste_calculado']}")
-            else:
-                # Aplica el ajuste calculado originalmente si no hay referidos perdidos
-                df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Ajuste_calculado'] = ajuste_calculado
+            if info_referidos_str:
+                info_referidos = eval(info_referidos_str)
+                referido_perdido = any(ref['Tiene Credito Perdido'] == True for ref in info_referidos)
 
-
-            # df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Ajuste_calculado'] = ajuste_calculado
-
-
+                if referido_perdido:
+                    # Aplica el ajuste por referido perdido a todos los referidos directos, excepto a los perdidos
+                    for referido in info_referidos:
+                        if referido['Tiene Credito Perdido'] != True:
+                            id_referido = referido['ID CLIENTE']
+                            df_contacto.loc[df_contacto['ID CLIENTE'] == id_referido, 'Ajuste_calculado'] = PARAM_POR_PERDIDO
+                            df_contacto.loc[df_contacto['ID CLIENTE'] == id_referido, 'Afectado_x_red'] = 'VERDADERO'
+                else:
+                    ajuste_calculado, referido_perdido , _ = calcular_ajustes(id_cliente, df_contacto, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS)
+                    df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'Ajuste_calculado'] = ajuste_calculado
+                    df_contacto.loc[df_contacto['ID CLIENTE'] == id_cliente, 'REFERIDO_Perdido'] = referido_perdido
 
         logger.info("Ajustes aplicados exitosamente...")
 

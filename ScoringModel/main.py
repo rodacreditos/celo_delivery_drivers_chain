@@ -149,11 +149,6 @@ def ponderar_puntajes(puntajes):
     puntaje_ponderado = sum(peso * puntaje for peso, puntaje in zip(pesos_normalizados, puntajes))
     return puntaje_ponderado
 
-# Ejemplo de uso de la función
-#puntajes_ejemplo = [200, 500, 800, 1000]  # Lista de ejemplo con puntajes
-#puntaje_ponderado_ejemplo = ponderar_puntajes(puntajes_ejemplo)
-#puntaje_ponderado_ejemplo
-
 
 def asignar_bonus_acuerdos(DF_solicitud_credito, bonus):
     # Calcular la razón entre 'Num_Acuerdos_Cumplidos' y 'Cantidad acuerdos'

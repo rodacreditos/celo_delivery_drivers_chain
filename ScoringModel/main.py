@@ -6,7 +6,7 @@ import logging
 
 sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba en la jerarquía
 
-from api_airtable import get_table_Airtable
+from api_airtable import get_table_Airtable, return_column_airtable
 from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX, logger, setup_local_logger
 from social_score import afectaciones_por_referidos
 # Constantes
@@ -354,16 +354,17 @@ def handler(event, context):
 
     try:
         df_contactos_procesados, df_creditos_procesados = run(personal_access_token)
-        # Aquí puedes añadir código para manejar df_contactos_procesados, 
-        # como guardarlo en S3 o procesarlo de alguna manera.
 
-        nombre_archivo = "contactos_procesados.xlsx"
-        nombre_archivo_2 = "creditos_procesados.xlsx"
+        # nombre_archivo = "contactos_procesados.xlsx"
+        # nombre_archivo_2 = "creditos_procesados.xlsx"
         # Guarda el DataFrame en un archivo Excel en el directorio actual
-        df_contactos_procesados.to_excel(nombre_archivo, index=False)
-        df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
+        # df_contactos_procesados.to_excel(nombre_archivo, index=False)
+        # df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
         logger.info(f"Scoring calculado completamente con {len(df_contactos_procesados)} clientes.")
-        print(df_contactos_procesados)
+
+        return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos', df_contactos_procesados)
+
+        # print(df_contactos_procesados)
         return {
             'statusCode': 200,
             'body': 'Procesamiento completado exitosamente.'

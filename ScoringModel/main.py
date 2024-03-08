@@ -363,7 +363,7 @@ def handler(event, context):
         logger.info(f"Scoring calculado completamente con {len(df_contactos_procesados)} clientes.")
 
         
-        return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos', df_contactos_procesados)
+        return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos','Puntaje_Final_Ajustado', df_contactos_procesados)
 
         return {
             'statusCode': 200,

@@ -10,10 +10,15 @@ REPO_NAME := rodaapp
 
 # Construye la imagen
 build_scoring_image:
-	docker build -t $(REPO_NAME):$(IMAGE_NAME) -f ./Dockerfile ../
+	docker build -t $(REPO_NAME):$(IMAGE_NAME) -f Dockerfile ../
 
-run_scoring_image:
-	docker run --rm -p 8080:8080 $(IMAGE_NAME)
+run_scoring_local:
+	docker run --rm -it \
+		-v ~/.aws:/root/.aws \
+		--entrypoint python \
+		rodaapp:roda_scoring_builder \
+		main.py --environment staging
+
 
 # Inicia sesión en ecr
 login-ecr:
@@ -23,7 +28,6 @@ login-ecr:
 deploy_scoring_image:
 	docker tag rodaapp:roda_scoring_builder $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:roda_scoring_builder
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:roda_scoring_builder
-
 
 
 update_scoring_lambda_function:

@@ -140,7 +140,8 @@ resource "aws_iam_role_policy" "sfn_policy" {
           aws_lambda_function.tribu_processing.arn,
           aws_lambda_function.credit_blockchain_publisher.arn,
           aws_lambda_function.payment_blockchain_publisher.arn,
-          aws_lambda_function.publish_to_blockchain.arn
+          aws_lambda_function.publish_to_blockchain.arn,
+          aws_lambda_function.scoring_model.arn
         ]
       }
     ]
@@ -251,3 +252,21 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
 EOF
 }
 
+resource "aws_sfn_state_machine" "scoring_model_state_machine" {
+  name     = "ScoringModelStateMachine"
+  role_arn = aws_iam_role.sfn_role.arn
+
+  definition = <<EOF
+{
+  "Comment": "A state machine to execute the scoring model Lambda function",
+  "StartAt": "InvokeScoringModel",
+  "States": {
+    "InvokeScoringModel": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:062988117074:function:scoring_model",
+      "End": true
+    }
+  }
+}
+EOF
+}

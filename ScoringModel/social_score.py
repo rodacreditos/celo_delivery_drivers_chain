@@ -67,7 +67,7 @@ def ajuste_x_referidos_atrasados(id_referidor, dataframe_auxiliar, df_contacto, 
 
         id_referidor = int(id_referidor)
 
-        logger.info(f"Calculando ajustes por referidos atrasados para el cliente {id_referidor}...")
+        # logger.info(f"Calculando ajustes por referidos atrasados para el cliente {id_referidor}...")
         clientes_con_atraso = dataframe_auxiliar[dataframe_auxiliar['Último Días de Atraso'] > 0].shape[0]
 
         # Calcular porcentaje de referidos con atraso
@@ -117,7 +117,7 @@ def get_info_referido(id_referidor, df_contacto):
 
         id_referidor = int(id_referidor)
 
-        logger.info(f"Obteniendo información sobre referidos del cliente {id_referidor}...")
+        # logger.info(f"Obteniendo información sobre referidos del cliente {id_referidor}...")
         # Filtrar referidos que tienen "Créditos en Proceso" = 'VERDADERO'
         referidos = df_contacto[(df_contacto['ID Referidor Nocode'] == id_referidor) & (df_contacto['Créditos en Proceso'] == 'VERDADERO')]
 
@@ -253,7 +253,7 @@ def calculo_ajustes(df_contacto, UMBRAL_BONUS, INCREMENTO_POR_REFERIDO, DECREMEN
         INCREMENTO_POR_REFERIDO = float(INCREMENTO_POR_REFERIDO)
         DECREMENTO_POR_REFERIDO = float(DECREMENTO_POR_REFERIDO)
 
-        logger.info("Calculando ajustes...")
+        logger.info("Calculando ajustes x red social...")
 
         # Inicializar las columnas necesarias en df_contacto si aún no existen
         if 'REFERIDO_Perdido' not in df_contacto.columns:
@@ -326,7 +326,7 @@ def afectaciones_por_referidos(df_contacto, df_credito, INCREMENTO_POR_REFERIDO,
     setup_local_logger()
 
     try:
-        logger.info("Computing social score...")
+        logger.info("Calculando social score...")
 
         df_contacto, df_credito = cleaning_social_variables(df_contacto, df_credito)
 

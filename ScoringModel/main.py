@@ -3,6 +3,7 @@ import numpy as np
 import os
 import sys
 import logging
+import argparse
 
 sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba en la jerarquía
 
@@ -270,22 +271,6 @@ def score_inicial(df):
 
     return df
 
-def arreglo_retorno_airtable(df):
-    # Convertir ID CLIENTE a entero
-    df['ID CLIENTE'] = df['ID CLIENTE'].astype(int)
-    
-    # Convertir Puntaje_Final a entero
-    df['Puntaje_Final'] = df['Puntaje_Final'].astype(int)
-    
-    # Cambiar el nombre de la columna 'Último Días de Atraso' a 'Días de Atraso Actuales'
-    df.rename(columns={'Último Días de Atraso': 'Días de Atraso Actuales'}, inplace=True)
-    
-    # Cambiar True por 'Sí' en la columna 'Tiene Credito Perdido'
-    df['Tiene Credito Perdido'] = df['Tiene Credito Perdido'].map({True: 'Sí', False: 'No'})
-    
-    return df
-
-
 
 def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value):
     """
@@ -305,6 +290,7 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedi
     :return: Contact DataFrame with the final score calculated.
     """
 
+    logger.info("Calculando scoring individual...")
     # Asignación de puntajes
     DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Monto_Prom_Creditos')  # Creación Monto_Prom_Puntaje
     DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Num_Creditos')  # Creación Num_Creditos_Puntaje
@@ -340,7 +326,6 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedi
 
 
     DF_contactos = afectaciones_por_referidos(DF_contactos, DF_solicitud_credito, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS, PARAM_POR_PERDIDO)
-    print(DF_contactos)
     return DF_contactos
 
 
@@ -364,7 +349,7 @@ def handler(event, context):
     :param context: AWS Lambda context object (not used for now).
     :return: A response dictionary with status and result.
     """
-
+    logger.setLevel(logging.INFO)
     logger.info("Starting execution...")
 
     try:
@@ -380,7 +365,6 @@ def handler(event, context):
         
         return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos', df_contactos_procesados)
 
-        # print(df_contactos_procesados)
         return {
             'statusCode': 200,
             'body': 'Procesamiento completado exitosamente.'
@@ -394,26 +378,23 @@ def handler(event, context):
     
 # Script principal
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    # Determina el entorno de ejecución
+    if 'AWS_LAMBDA_RUNTIME_API' in os.environ:
+        # Estamos ejecutando en el entorno de AWS Lambda
+        from awslambdaric import bootstrap
+        bootstrap.run(handler, '/var/runtime/bootstrap')
+    else:
+        # Estamos ejecutando localmente o en otro entorno fuera de AWS Lambda
+        parser = argparse.ArgumentParser(description="Scoring Model execution")
+        parser.add_argument("-e", "--environment", help="El entorno de ejecución (staging o production)", choices=['staging', 'production'], required=False, default="staging")
 
-    """
-    Main entry point for local script execution.
-    
-    Executes the script directly and simulates an AWS Lambda event.
-    """
-    setup_local_logger()
-
-    # Simular un evento Lambda. Puedes modificar esto según tus necesidades.
-    fake_lambda_event = {
-        # Agrega aquí los datos que normalmente recibirías en un evento de Lambda
-    }
-    fake_lambda_context = None  # Context no es necesario para la ejecución local
-
-    # Ejecutar el handler como si estuviera en Lambda
-    response = handler(fake_lambda_event, fake_lambda_context)
-    print(response)
-
-
+        args = parser.parse_args()
+        setup_local_logger() # Configura un logger para ejecución local si es necesario
+        # Simula el evento y el contexto que AWS Lambda pasaría a tu función 'handler'
+        event = {"environment": args.environment}
+        context = "LocalExecution"  # Puedes proporcionar un objeto de contexto más detallado si es necesario
+        handler(event, context)
 
 
 

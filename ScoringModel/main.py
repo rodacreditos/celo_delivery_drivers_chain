@@ -17,8 +17,8 @@ airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
 base_key = airtable_credentials['BASE_ID']
 personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
 
-fields_credito = ["ID CRÉDITO", "ESTADO", "ID Cliente nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados", "# Acuerdos FECHA cumplido copy", "Cantidad acuerdos", "Días de atraso", "Fecha desembolso"]
-fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "Promedio monto créditos", "Numero de creditos REAL", "¿Referido RODA?", "ID Referidor Nocode"]
+fields_credito = ["ID CRÉDITO", "ESTADO", "ID Cliente nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados", "# Acuerdos FECHA cumplido copy", "Cantidad acuerdos", "Días de atraso", "Fecha desembolso", "Deuda actual 2.0"]
+fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "Promedio monto créditos", "Numero de creditos REAL", "¿Referido RODA?", "ID Referidor Nocode", "Nombre completo"]
 
 
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
@@ -270,6 +270,21 @@ def score_inicial(df):
 
     return df
 
+def arreglo_retorno_airtable(df):
+    # Convertir ID CLIENTE a entero
+    df['ID CLIENTE'] = df['ID CLIENTE'].astype(int)
+    
+    # Convertir Puntaje_Final a entero
+    df['Puntaje_Final'] = df['Puntaje_Final'].astype(int)
+    
+    # Cambiar el nombre de la columna 'Último Días de Atraso' a 'Días de Atraso Actuales'
+    df.rename(columns={'Último Días de Atraso': 'Días de Atraso Actuales'}, inplace=True)
+    
+    # Cambiar True por 'Sí' en la columna 'Tiene Credito Perdido'
+    df['Tiene Credito Perdido'] = df['Tiene Credito Perdido'].map({True: 'Sí', False: 'No'})
+    
+    return df
+
 
 
 def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value):
@@ -362,6 +377,7 @@ def handler(event, context):
         # df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
         logger.info(f"Scoring calculado completamente con {len(df_contactos_procesados)} clientes.")
 
+        
         return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos', df_contactos_procesados)
 
         # print(df_contactos_procesados)

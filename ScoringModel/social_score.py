@@ -30,17 +30,19 @@ def validacion_creditos_en_proceso(df_contacto, df_credito):
 
     dias_atraso_dict = ultimo_credito_por_cliente.set_index('ID Cliente nocode')['Días de atraso'].to_dict()
     id_credito_dict = ultimo_credito_por_cliente.set_index('ID Cliente nocode')['ID CRÉDITO'].to_dict()
-
+    monto_credito = ultimo_credito_por_cliente.set_index('ID Cliente nocode')['Deuda actual 2.0'].to_dict()
     # Asigna directamente np.nan en lugar de 'N/A' antes de la conversión a numérico
     df_contacto['Último Días de Atraso'] = df_contacto['ID CLIENTE'].map(dias_atraso_dict)
     df_contacto['Último ID CRÉDITO'] = df_contacto['ID CLIENTE'].map(id_credito_dict)
-
+    df_contacto['Último Deuda Actual'] = df_contacto['ID CLIENTE'].map(monto_credito)
     # Solo reemplazar por np.nan si 'Créditos en Proceso' es 'FALSO' (Omitido ya que np.nan será el valor por defecto si no se encuentra el mapeo)
     # No es necesario reasignar 'N/A' y luego reemplazarlo, ya que el mapeo con .map() ya asignará np.nan a los que no encuentre
 
     # Convertir las columnas a numérico, asumiendo que np.nan ya está asignado a los valores faltantes
     df_contacto['Último Días de Atraso'] = pd.to_numeric(df_contacto['Último Días de Atraso'], errors='coerce')
     df_contacto['Último ID CRÉDITO'] = pd.to_numeric(df_contacto['Último ID CRÉDITO'], errors='coerce')
+    df_contacto['Último Deuda Actual'] = pd.to_numeric(df_contacto['Último Deuda Actual'], errors='coerce')
+
 
     return df_contacto
 
@@ -123,10 +125,12 @@ def get_info_referido(id_referidor, df_contacto):
             # Extraer la información deseada para cada referido y almacenarla en una lista de diccionarios
             info_referidos_list = referidos.apply(lambda row: {
                 'ID CLIENTE': row['ID CLIENTE'],
-                'Puntaje_Final': row['Puntaje_Final'],
+                'Nombre completo': row['Nombre completo'],
+                # 'Puntaje_Final': row['Puntaje_Final'],
                 'Créditos en Proceso': row['Créditos en Proceso'],
-                'Último Días de Atraso': row['Último Días de Atraso'],
-                'Tiene Credito Perdido': row['Tiene Credito Perdido']
+                'Días de Atraso Actuales': int(row['Último Días de Atraso']),
+                'Tiene Credito Perdido': row['Tiene Credito Perdido'],
+                'Deuda Actual': row['Último Deuda Actual']
                 
             }, axis=1).tolist()
 

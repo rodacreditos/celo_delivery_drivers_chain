@@ -5,12 +5,14 @@ import sys
 import logging
 import argparse
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from io import BytesIO
+
 
 sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba en la jerarquía
 
 from api_airtable import get_table_Airtable, return_column_airtable
-from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX, logger, setup_local_logger, format_dashed_date, upload_buffer_to_s3
+from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX, logger, setup_local_logger, format_dashed_date, upload_buffer_to_s3, validate_date, yesterday
 from social_score import afectaciones_por_referidos
 # Constantes
 
@@ -349,8 +351,14 @@ def upload_pandas_to_s3(s3_path: str, df: pd.DataFrame) -> None:
     """
     logger.info(f"Uploading scores on S3 {s3_path}")
     with BytesIO() as csv_buffer:
-        df.to_csv(csv_buffer, index=False)
+        df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
         upload_buffer_to_s3(s3_path, csv_buffer)
+
+
+def clean_before_export(df):
+    # Drop the specified columns
+    df = df.drop(columns=['¿Referido RODA?', "ID's Créditos"])
+    return df
 
 # Lambda handler
 
@@ -376,13 +384,13 @@ def handler(event, context):
         # df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
         logger.info(f"Scoring calculado completamente con {len(df_contactos_procesados)} clientes.")
 
-        processing_date_str = event.get("processing_date")
-        if processing_date_str:
-            processing_date = datetime.strptime(processing_date_str, "%Y-%m-%d")
-        else:
-            processing_date = datetime.now()
-        output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "daily_scoring", f"date_{format_dashed_date(processing_date)}_scores.csv")
+        # Obtiene la fecha de procesamiento desde el evento, si está disponible.
+        # processing_date = event.get("processing_date", "")
 
+        processing_date = yesterday()
+        print(processing_date)
+        output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "daily_scoring", f"date_{format_dashed_date(processing_date)}_scores.csv")
+        df_contactos_procesados=clean_before_export(df_contactos_procesados)
         upload_pandas_to_s3(output_path, df_contactos_procesados)
 
         # return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos','Puntaje_Final_Ajustado', df_contactos_procesados)
@@ -412,12 +420,12 @@ if __name__ == "__main__":
         # Estamos ejecutando localmente o en otro entorno fuera de AWS Lambda
         parser = argparse.ArgumentParser(description="Scoring Model execution")
         parser.add_argument("-e", "--environment", help="El entorno de ejecución (staging o production)", choices=['staging', 'production'], required=False, default="staging")
-        parser.add_argument("-d", "--date", help="Date of the execution of this script in YYYY-MM-DD format", required=False, default=datetime.now().strftime("%Y-%m-%d"), type=lambda s: datetime.strptime(s, "%Y-%m-%d").strftime("%Y-%m-%d"))
+        # parser.add_argument("-d", "--date", help="Date of the execution of this script in YYYY-MM-DD format", required=False, default=datetime.now().strftime("%Y-%m-%d"), type=lambda s: datetime.strptime(s, "%Y-%m-%d").strftime("%Y-%m-%d"))
         
         args = parser.parse_args()
         setup_local_logger() # Configura un logger para ejecución local si es necesario
         # Simula el evento y el contexto que AWS Lambda pasaría a tu función 'handler'
-        event = {"environment": args.environment, "processing_date": args.date}
+        event = {"environment": args.environment}
         context = "LocalExecution"  # Puedes proporcionar un objeto de contexto más detallado si es necesario
         handler(event, context)
 

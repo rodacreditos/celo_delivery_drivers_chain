@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ScoringModel/api_airtable.py ./
 COPY ScoringModel/main.py ./
 COPY ScoringModel/social_score.py ./
+COPY ScoringModel/return_airtable.py ./
 
 # Copia utils.py desde python_utilities
 COPY python_utilities/utils.py ./python_utilities/

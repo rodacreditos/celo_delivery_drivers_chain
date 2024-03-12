@@ -74,27 +74,27 @@ def return_column_airtable(table_name, personal_access_token, base_key, name_col
     updated_count = 0
     not_found_count = 0
 
-    if name_column1 not in df_contacto.columns:
-        logger.error(f"The column '{name_column1}' does not exist in the provided DataFrame.")
-        return
-    
-    if name_column2 not in df_contacto.columns:
-        logger.error(f"The column '{name_column2}' does not exist in the provided DataFrame.")
-        return
-
     for index, row in df_contacto.iterrows():
         id_cliente = row['ID CLIENTE']
         if id_cliente in id_map:
             record_id = id_map[id_cliente]
-            update_data1 = {name_column1: row[name_column1]}
-            update_data2 = {name_column2: row[name_column2]}
+            update_data = {}
+            
+            # Evalúa name_column1 para actualizar solo si no es NaN ni vacío
+            if pd.notna(row[name_column1]) and row[name_column1] != '':
+                update_data[name_column1] = row[name_column1]
+            
+            # name_column2 se actualiza sin restricciones
+            update_data[name_column2] = row[name_column2]
+            
             try:
-                airtable.update(record_id, update_data1)
-                airtable.update(record_id, update_data2)
-                updated_count += 1
-                logger.info(f"Updated records for ID CLIENTE {id_cliente} in Airtable.")
+                # Solo realiza la actualización si hay algo que actualizar
+                if update_data:
+                    airtable.update(record_id, update_data)
+                    updated_count += 1
+                    logger.info(f"Updated record for ID CLIENTE {id_cliente} in Airtable.")
             except Exception as e:
-                logger.error(f"Error updating records for ID CLIENTE {id_cliente} in Airtable: {e}")
+                logger.error(f"Error updating record for ID CLIENTE {id_cliente} in Airtable: {e}")
         else:
             not_found_count += 1
             logger.info(f"No matching record found for ID CLIENTE {id_cliente} in Airtable.")

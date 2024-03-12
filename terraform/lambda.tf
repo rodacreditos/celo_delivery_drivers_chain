@@ -86,6 +86,21 @@ resource "aws_lambda_function" "scoring_model" {
   timeout = 900
 }
 
+resource "aws_lambda_function" "return_airtable" {
+  function_name = "return_airtable"
+
+  package_type = "Image"
+  image_uri    = "062988117074.dkr.ecr.us-east-2.amazonaws.com/rodaapp:roda_scoring_builder"
+
+  role    = aws_iam_role.lambda_exec_role.arn
+
+  timeout = 900  # Timeout in seconds (current value is 15 minutes, maximum valid value)
+
+  image_config {
+    command = ["return_airtable.handler"] # Correct key for specifying the handler
+  }
+}
+
 
 
 resource "aws_iam_role" "lambda_exec_role" {

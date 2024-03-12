@@ -141,7 +141,8 @@ resource "aws_iam_role_policy" "sfn_policy" {
           aws_lambda_function.credit_blockchain_publisher.arn,
           aws_lambda_function.payment_blockchain_publisher.arn,
           aws_lambda_function.publish_to_blockchain.arn,
-          aws_lambda_function.scoring_model.arn
+          aws_lambda_function.scoring_model.arn,
+          aws_lambda_function.return_airtable.arn
         ]
       }
     ]
@@ -258,12 +259,17 @@ resource "aws_sfn_state_machine" "scoring_model_state_machine" {
 
   definition = <<EOF
 {
-  "Comment": "A state machine to execute the scoring model Lambda function",
+  "Comment": "A state machine to execute the scoring model Lambda function and then return data to Airtable",
   "StartAt": "InvokeScoringModel",
   "States": {
     "InvokeScoringModel": {
       "Type": "Task",
       "Resource": "arn:aws:lambda:us-east-2:062988117074:function:scoring_model",
+      "Next": "InvokeReturnAirtable"
+    },
+    "InvokeReturnAirtable": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:062988117074:function:return_airtable",
       "End": true
     }
   }

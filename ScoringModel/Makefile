@@ -19,6 +19,15 @@ run_scoring_local:
 		rodaapp:roda_scoring_builder \
 		main.py --environment staging
 
+run_return_airtable_local:
+	docker run --rm -it \
+			-v ~/.aws:/root/.aws \
+			--entrypoint python \
+			-e TZ=America/Lima \
+			rodaapp:roda_scoring_builder \
+			return_airtable.py --environment staging
+
+
 
 # Inicia sesión en ecr
 login-ecr:
@@ -32,3 +41,6 @@ deploy_scoring_image:
 
 update_scoring_lambda_function:
 	aws lambda update-function-code --function-name scoring_model --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:roda_scoring_builder
+
+update_return_airtable_lambda_function:
+	aws lambda update-function-code --function-name return_airtable --image-uri $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/rodaapp:roda_scoring_builder

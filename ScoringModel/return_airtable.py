@@ -1,9 +1,10 @@
 import os
 import argparse
+import logging
 import pandas as pd
 from io import BytesIO
 from datetime import datetime, timedelta
-from python_utilities.utils import read_yaml_from_s3, read_from_s3, RODAAPP_BUCKET_PREFIX, logger, setup_local_logger #, yesterday
+from python_utilities.utils import read_yaml_from_s3, read_from_s3, RODAAPP_BUCKET_PREFIX, logger, setup_local_logger, yesterday
 from api_airtable import return_column_airtable
 
 airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
@@ -12,11 +13,11 @@ airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
 base_key = airtable_credentials['BASE_ID']
 personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
 
-def yesterday():
-    """
-    Returns the date of the day before today, formatted as 'YYYY-MM-DD'.
-    """
-    return (datetime.now() - timedelta(1)).strftime('%Y-%m-%d')
+# def yesterday():
+#    """
+#    Returns the date of the day before today, formatted as 'YYYY-MM-DD'.
+#    """
+#    return (datetime.now() - timedelta(1)).strftime('%Y-%m-%d')
 
 def read_csv_into_pandas_from_s3(s3_path: str) -> pd.DataFrame:
     """
@@ -31,7 +32,7 @@ def read_csv_into_pandas_from_s3(s3_path: str) -> pd.DataFrame:
 
 
 def handler(event, context):
-    setup_local_logger()
+    logger.setLevel(logging.INFO)
     logger.info("Starting Airtable update...")
 
     try:
@@ -40,13 +41,13 @@ def handler(event, context):
         airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
         base_key = airtable_credentials['BASE_ID']
         personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
-        
         # Determina la fecha para leer el archivo
-        processing_date_str = event.get("date", yesterday())
-        print(processing_date_str)
+        processing_date_str = event.get("date", yesterday().strftime("%Y-%m-%d"))
+
+        print(f"processing_date_str: {processing_date_str}")
         input_path = os.path.join(RODAAPP_BUCKET_PREFIX, "daily_scoring", f"date_{processing_date_str}_scores.csv")
-        # s3_full_path = f"s3://{input_path}"
         
+        print(f"input_path: {input_path}")
         # Lee el archivo CSV como DataFrame
         df_contactos_procesados = read_csv_into_pandas_from_s3(input_path)
         
@@ -76,8 +77,8 @@ if __name__ == "__main__":
         # Estamos ejecutando localmente o en otro entorno fuera de AWS Lambda
         parser = argparse.ArgumentParser(description="Return scores to Airtable")
         parser.add_argument("-e", "--environment", help="El entorno de ejecución (staging o production)", choices=['staging', 'production'], required=False, default="staging")
-        parser.add_argument("-d", "--date", help="Date of the execution of this script in YYYY-MM-DD format", required=False, default=datetime.now().strftime("%Y-%m-%d"), type=lambda s: datetime.strptime(s, "%Y-%m-%d").strftime("%Y-%m-%d"))
-        
+        parser.add_argument("-d", "--date", help="Date of the execution of this script in YYYY-MM-DD format", required=False, default=yesterday().strftime("%Y-%m-%d"), type=str)
+
         args = parser.parse_args()
         setup_local_logger() # Configura un logger para ejecución local si es necesario
         # Simula el evento y el contexto que AWS Lambda pasaría a tu función 'handler'

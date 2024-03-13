@@ -139,8 +139,13 @@ def get_info_referido(id_referidor, df_contacto):
             
             # Actualizar la columna 'Info_Referidos' en df_contacto para el cliente especificado
             df_contacto.loc[df_contacto['ID CLIENTE'] == id_referidor, 'Info_Referidos'] = info_referidos_str
-        else:
-            logger.info(f"No se encontraron referidos en proceso para el cliente {id_referidor}")
+
+            # Calcular la suma de deuda de referidos con más de 50 días de atraso
+            deuda_perdidos50 = referidos[referidos['Último Días de Atraso'] > 50]['Último Deuda Actual'].sum()
+            
+            # Asignar la suma calculada a una nueva columna en el DataFrame principal para el referidor especificado
+            df_contacto.loc[df_contacto['ID CLIENTE'] == id_referidor, 'deuda_perdidos50'] = deuda_perdidos50
+
 
     except ValueError:
         logger.error("ID del referidor debe ser un entero.")

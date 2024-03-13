@@ -40,7 +40,7 @@ def get_table_Airtable(table_name1, personal_access_token,base_key, fields=None,
     return df
 
 
-def return_column_airtable(table_name, personal_access_token, base_key, name_column1, name_column2, df_contacto):
+def return_column_airtable(table_name, personal_access_token, base_key, name_column1, name_column2, name_column3, df_contacto):
     """
     Updates a specified column in an Airtable table for each record that matches 'ID CLIENTE' in the provided DataFrame.
 
@@ -83,6 +83,7 @@ def return_column_airtable(table_name, personal_access_token, base_key, name_col
             # Evalúa name_column1 para actualizar solo si no es NaN ni vacío
             if pd.notna(row[name_column1]) and row[name_column1] != '':
                 update_data[name_column1] = row[name_column1]
+                update_data[name_column3] = row[name_column3]
             
             # name_column2 se actualiza sin restricciones
             update_data[name_column2] = row[name_column2]

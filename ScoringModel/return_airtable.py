@@ -52,7 +52,7 @@ def handler(event, context):
         df_contactos_procesados = read_csv_into_pandas_from_s3(input_path)
         
         # Actualiza Airtable (ajusta esta llamada según tus necesidades)
-        return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos','Puntaje_Final_Ajustado', df_contactos_procesados)
+        return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos','Puntaje_Final_Ajustado', 'deuda_perdidos50', df_contactos_procesados)
 
         logger.info("Airtable update completed successfully.")
         return {

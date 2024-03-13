@@ -8,6 +8,11 @@ resource "aws_cloudwatch_event_rule" "daily_trigger_for_credit" {
   schedule_expression = "cron(0 6 * * ? *)"
 }
 
+resource "aws_cloudwatch_event_rule" "daily_trigger_for_scoring" {
+  name                = "daily-trigger-for-scoring-at-6-am"
+  schedule_expression = "cron(0 6 * * ? *)"
+}
+
 resource "aws_cloudwatch_event_target" "trigger_state_machine" {
   rule = aws_cloudwatch_event_rule.daily_trigger.name
   arn  = aws_sfn_state_machine.tribu_state_machine.arn
@@ -18,6 +23,12 @@ resource "aws_cloudwatch_event_target" "trigger_state_machine" {
 resource "aws_cloudwatch_event_target" "trigger_credit_state_machine" {
   rule      = aws_cloudwatch_event_rule.daily_trigger_for_credit.name
   arn       = aws_sfn_state_machine.credit_blockchain_publisher_pipeline.arn
+  role_arn  = aws_iam_role.cloudwatch_role.arn
+}
+
+resource "aws_cloudwatch_event_target" "trigger_scoring_state_machine" {
+  rule      = aws_cloudwatch_event_rule.daily_trigger_for_scoring.name
+  arn       = aws_sfn_state_machine.scoring_model_state_machine.arn
   role_arn  = aws_iam_role.cloudwatch_role.arn
 }
 

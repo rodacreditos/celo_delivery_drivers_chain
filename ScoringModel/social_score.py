@@ -119,7 +119,7 @@ def get_info_referido(id_referidor, df_contacto):
 
         # logger.info(f"Obteniendo información sobre referidos del cliente {id_referidor}...")
         # Filtrar referidos que tienen "Créditos en Proceso" = 'VERDADERO'
-        referidos = df_contacto[(df_contacto['ID Referidor Nocode'] == id_referidor) & (df_contacto['Créditos en Proceso'] == 'VERDADERO')]
+        referidos = df_contacto[(df_contacto['ID Referidor Nocode'] == id_referidor) & (df_contacto['Créditos en Proceso'] == 'VERDADERO') & (df_contacto['¿Referido RODA?'] == 'Sí')]
 
         if not referidos.empty:
             # Extraer la información deseada para cada referido y almacenarla en una lista de diccionarios

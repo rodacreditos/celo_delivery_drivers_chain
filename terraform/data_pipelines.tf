@@ -190,7 +190,7 @@ resource "aws_iam_policy" "cloudwatch_sfn_policy" {
         Resource = [
           aws_sfn_state_machine.tribu_state_machine.arn,
           aws_sfn_state_machine.credit_blockchain_publisher_pipeline.arn,
-          aws_sfn_state_machine.scoring_model_state_machine.arn
+          aws_sfn_state_machine.scoring_model_state_machine.arn,
         ]
       },
       {
@@ -200,7 +200,7 @@ resource "aws_iam_policy" "cloudwatch_sfn_policy" {
           aws_lambda_function.scoring_model.arn,
           aws_lambda_function.publish_to_blockchain.arn,
           aws_lambda_function.credit_blockchain_publisher.arn,
-          aws_lambda_function.payment_blockchain_publisher.arn
+          aws_lambda_function.payment_blockchain_publisher.arn,
         ]  # Allow scoring lambda function
       }
     ]

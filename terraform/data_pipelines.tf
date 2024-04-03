@@ -8,6 +8,11 @@ resource "aws_cloudwatch_event_rule" "daily_trigger_for_credit" {
   schedule_expression = "cron(0 6 * * ? *)"
 }
 
+resource "aws_cloudwatch_event_rule" "daily_trigger_for_scoring" {
+  name                = "daily-trigger-for-scoring-at-6-am"
+  schedule_expression = "cron(0 6 * * ? *)"
+}
+
 resource "aws_cloudwatch_event_target" "trigger_state_machine" {
   rule = aws_cloudwatch_event_rule.daily_trigger.name
   arn  = aws_sfn_state_machine.tribu_state_machine.arn
@@ -18,6 +23,12 @@ resource "aws_cloudwatch_event_target" "trigger_state_machine" {
 resource "aws_cloudwatch_event_target" "trigger_credit_state_machine" {
   rule      = aws_cloudwatch_event_rule.daily_trigger_for_credit.name
   arn       = aws_sfn_state_machine.credit_blockchain_publisher_pipeline.arn
+  role_arn  = aws_iam_role.cloudwatch_role.arn
+}
+
+resource "aws_cloudwatch_event_target" "trigger_scoring_state_machine" {
+  rule      = aws_cloudwatch_event_rule.daily_trigger_for_scoring.name
+  arn       = aws_sfn_state_machine.scoring_model_state_machine.arn
   role_arn  = aws_iam_role.cloudwatch_role.arn
 }
 
@@ -140,7 +151,9 @@ resource "aws_iam_role_policy" "sfn_policy" {
           aws_lambda_function.tribu_processing.arn,
           aws_lambda_function.credit_blockchain_publisher.arn,
           aws_lambda_function.payment_blockchain_publisher.arn,
-          aws_lambda_function.publish_to_blockchain.arn
+          aws_lambda_function.publish_to_blockchain.arn,
+          aws_lambda_function.scoring_model.arn,
+          aws_lambda_function.return_airtable.arn
         ]
       }
     ]
@@ -176,7 +189,8 @@ resource "aws_iam_policy" "cloudwatch_sfn_policy" {
         Effect = "Allow",
         Resource = [
           aws_sfn_state_machine.tribu_state_machine.arn,
-          aws_sfn_state_machine.credit_blockchain_publisher_pipeline.arn
+          aws_sfn_state_machine.credit_blockchain_publisher_pipeline.arn,
+          aws_sfn_state_machine.scoring_model_state_machine.arn,
         ]
       },
       {
@@ -186,7 +200,7 @@ resource "aws_iam_policy" "cloudwatch_sfn_policy" {
           aws_lambda_function.scoring_model.arn,
           aws_lambda_function.publish_to_blockchain.arn,
           aws_lambda_function.credit_blockchain_publisher.arn,
-          aws_lambda_function.payment_blockchain_publisher.arn
+          aws_lambda_function.payment_blockchain_publisher.arn,
         ]  # Allow scoring lambda function
       }
     ]
@@ -251,3 +265,26 @@ resource "aws_sfn_state_machine" "credit_blockchain_publisher_pipeline" {
 EOF
 }
 
+resource "aws_sfn_state_machine" "scoring_model_state_machine" {
+  name     = "ScoringModelStateMachine"
+  role_arn = aws_iam_role.sfn_role.arn
+
+  definition = <<EOF
+{
+  "Comment": "A state machine to execute the scoring model Lambda function and then return data to Airtable",
+  "StartAt": "InvokeScoringModel",
+  "States": {
+    "InvokeScoringModel": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:062988117074:function:scoring_model",
+      "Next": "InvokeReturnAirtable"
+    },
+    "InvokeReturnAirtable": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:062988117074:function:return_airtable",
+      "End": true
+    }
+  }
+}
+EOF
+}

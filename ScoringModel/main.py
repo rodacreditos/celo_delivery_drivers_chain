@@ -1,17 +1,30 @@
 import pandas as pd
 import numpy as np
 import os
+import sys
+import logging
+import argparse
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from io import BytesIO
 
-from api_airtable import get_table_Airtable
-from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX
+
+sys.path.append('../')  # Asume que la carpeta contenedora está un nivel arriba en la jerarquía
+
+from api_airtable import get_table_Airtable, return_column_airtable
+from python_utilities.utils import read_yaml_from_s3, RODAAPP_BUCKET_PREFIX, logger, setup_local_logger, format_dashed_date, upload_buffer_to_s3, validate_date, yesterday
+from social_score import afectaciones_por_referidos
 # Constantes
-
 
 airtable_credentials_path = os.path.join(RODAAPP_BUCKET_PREFIX, "credentials", "roda_airtable_credentials.yaml")
 airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
 
 base_key = airtable_credentials['BASE_ID']
 personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
+
+fields_credito = ["ID CRÉDITO", "ESTADO", "ID Cliente nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados", "# Acuerdos FECHA cumplido copy", "Cantidad acuerdos", "Días de atraso", "Fecha desembolso", "Deuda actual 2.0"]
+fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "Promedio monto créditos", "Numero de creditos REAL", "¿Referido RODA?", "ID Referidor Nocode", "Nombre completo"]
+
 
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
 estados_deseados_credito = ["PAGADO", "EN PROCESO"]
@@ -21,6 +34,10 @@ puntajes_atraso_promedio = [1000, 800, 600, 400, 100,0]
 limites_atraso_acumulado = [0, 20, 40, 69, 180, 250]
 puntajes_atraso_acumulado = [1000, 700, 400, 200, 0]
 
+# Bonus Value
+
+bonus_value = 50
+
 # Ponderaciones para el cálculo del score 
 W1=0
 W2=0.1
@@ -28,6 +45,14 @@ W3=0.1
 W4=0.8
 
 nombre_archivo = "DF_contactos.xlsx"
+
+# Social Score
+
+INCREMENTO_POR_REFERIDO = 0.05  # 10% de incremento por cada referido que cumpla la condición
+DECREMENTO_POR_REFERIDO = 0.1
+UMBRAL_BONUS = 0.2
+PARAM_POR_PERDIDO = -0.5
+
 
 # Functions
 
@@ -129,11 +154,23 @@ def ponderar_puntajes(puntajes):
     puntaje_ponderado = sum(peso * puntaje for peso, puntaje in zip(pesos_normalizados, puntajes))
     return puntaje_ponderado
 
-# Ejemplo de uso de la función
-#puntajes_ejemplo = [200, 500, 800, 1000]  # Lista de ejemplo con puntajes
-#puntaje_ponderado_ejemplo = ponderar_puntajes(puntajes_ejemplo)
-#puntaje_ponderado_ejemplo
 
+def asignar_bonus_acuerdos(DF_solicitud_credito, bonus):
+    # Calcular la razón entre 'Num_Acuerdos_Cumplidos' y 'Cantidad acuerdos'
+    ratio = DF_solicitud_credito['Num_Acuerdos_Cumplidos'] / DF_solicitud_credito['Cantidad acuerdos']
+    
+    # Identificar las filas donde la razón es igual a 1 y el 'Puntaje_Del_Credito' es diferente de cero
+    condicion = (ratio == 1) & (DF_solicitud_credito['Puntaje_Del_Credito'] != 0)
+    
+    # Sumar el bonus al 'Puntaje_Del_Credito' donde la condición es verdadera
+    DF_solicitud_credito.loc[condicion, 'Puntaje_Del_Credito'] += bonus
+    
+    # Crear una nueva columna 'Bono_Aplicado' que indica si se aplicó el bono
+    DF_solicitud_credito['Bono_Aplicado'] = False  # Inicializar todos los valores como False
+    DF_solicitud_credito.loc[condicion, 'Bono_Aplicado'] = True  # Asignar True donde se aplicó el bono
+    
+    # Devolver el DataFrame actualizado
+    return DF_solicitud_credito
 
 def calcular_score(puntaje_inicial, W1, W2, lambda_val, beta, puntajes_credito):
     """
@@ -166,7 +203,7 @@ def aplicar_calculo(row):
     if row['Tiene Credito Perdido']:
         return 0
     else:
-        return calcular_score(row['puntaje_inicial'], W1, W2, row['Numero de creditos REAL_puntaje'], row['Promedio monto créditos_puntaje'], row['Puntaje Ponderado Creditos'])
+        return calcular_score(row['puntaje_inicial'], W1, W2, row['Num_Creditos_puntaje'], row['Monto_Prom_Creditos_puntaje'], row['Puntaje_Ponderado_Creditos'])
 
 # Modular functions
     
@@ -179,8 +216,8 @@ def obtener_datos(token):
     :return: Two DataFrames, one for credits and one for contacts.
 
     """
-    DF_solicitud_credito = get_table_Airtable('Creditos', token, 'Scoring_View', base_key)
-    DF_contactos = get_table_Airtable('Contactos', token, 'Scoring_View',base_key)
+    DF_solicitud_credito = get_table_Airtable('Creditos', token, base_key,fields_credito, 'Scoring_View')
+    DF_contactos = get_table_Airtable('Contactos', token, base_key,fields_contactos, 'Scoring_View')
     return DF_solicitud_credito, DF_contactos
 
 def transformar_datos(DF_contactos, DF_solicitud_credito):
@@ -193,85 +230,138 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     :return: Transformed DataFrames.
     """
 
+    logger.info("Cleaning data...")
+
     # Conversión de tipos de datos y limpieza
     DF_contactos['Numero de creditos REAL'] = pd.to_numeric(DF_contactos['Numero de creditos REAL'])
     DF_contactos['Promedio monto créditos'] = DF_contactos['Promedio monto créditos'].apply(replace_dict_with_empty)
     DF_contactos['Promedio monto créditos'] = pd.to_numeric(DF_contactos['Promedio monto créditos'])
+    DF_contactos['ID Referidor Nocode'] = pd.to_numeric(DF_contactos['ID Referidor Nocode'], errors='coerce')
 
     DF_solicitud_credito['Días mora/atraso promedio'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso promedio'], errors='coerce')
     DF_solicitud_credito['Días mora/atraso acumulados'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso acumulados'], errors='coerce')
     DF_solicitud_credito['ID Cliente nocode'] = pd.to_numeric(DF_solicitud_credito['ID Cliente nocode'])
+    DF_solicitud_credito['# Acuerdos FECHA cumplido copy'] = pd.to_numeric(DF_solicitud_credito['# Acuerdos FECHA cumplido copy'])
+    DF_solicitud_credito['Cantidad acuerdos'] = pd.to_numeric(DF_solicitud_credito['Cantidad acuerdos'])
+    
+    DF_solicitud_credito['Fecha desembolso'] = pd.to_datetime(DF_solicitud_credito['Fecha desembolso'], errors='coerce', format='%d/%m/%Y') # Ajusta el formato según sea necesario
+    DF_solicitud_credito['Días de atraso'] = pd.to_numeric(DF_solicitud_credito['Días de atraso'], errors= 'coerce')
+
 
     # Filtrado de DataFrames
     DF_contactos = DF_contactos[~DF_contactos["Status"].isin(estados_deseados)]
     DF_solicitud_credito = DF_solicitud_credito[DF_solicitud_credito["ESTADO"].isin(estados_deseados_credito)]
     DF_contactos = DF_contactos[DF_contactos["ID's Créditos"].notna()]
 
+
+    # Cambiar el nombre de las columnas
+    DF_solicitud_credito = DF_solicitud_credito.rename(columns={'Días mora/atraso promedio': 'Dias_Atraso_Prom', 'Días mora/atraso acumulados': 'Dias_Atraso_Acum', '# Acuerdos FECHA cumplido copy':'Num_Acuerdos_Cumplidos'})
+    DF_contactos = DF_contactos.rename(columns={'Promedio monto créditos': 'Monto_Prom_Creditos', 'Numero de creditos REAL': 'Num_Creditos'})
+
+    # Ahora las columnas tienen nuevos nombres en el DataFrame
+
+
+
     return DF_contactos, DF_solicitud_credito
 
-def calcular_puntajes(DF_contactos, DF_solicitud_credito):
+def score_inicial(df):
 
+    '''
+    Not final version, here demografic scoring will be built
+
+    '''
+
+    df['puntaje_inicial'] = 500
+
+    return df
+
+
+def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value):
     """
-    Calculates and assigns scores in DataFrames according to predefined criteria.
+    Calculates and assigns scores on DataFrames based on predefined criteria, then combines the DataFrames and calculates the final score for each contact.
+    
+    1. Assigns scores based on quartiles and custom criteria in the DataFrames of contacts and credit applications.
+    2. Calculates a weighted score for each customer based on their credits, applying specific bonuses.
+    3. Combine the DataFrames to include the weighted scores and calculate a final score considering if they have missing credits.
 
-    :param DF_contactos: Contacts DataFrame.
-    :param DF_solicitud_credito: DataFrame de solicitudes de crédito.
-    :return: Contact DataFrame with calculated scores and an auxiliary DataFrame with weighted scores
+    Param DF_contacts: Contacts DataFrame.
+    :param DF_credit_application: Credit applications DataFrame.
+    :param average_delinquency_limits: Limits for the calculation of average days past due scores.
+    :param average_delinquency_scores: Scores assigned to the ranges of average days past due.
+    param cumulative_delinquency_limits: Limits for the calculation of cumulative overdue days scores.
+    param cumulative_delay_scores: Scores assigned to the ranges of cumulative overdue days.
+    :param bonus_value: Value of the bonus for 100% fulfilled agreements.
+    :return: Contact DataFrame with the final score calculated.
     """
 
+    logger.info("Calculando scoring individual...")
     # Asignación de puntajes
-    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Promedio monto créditos')
-    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Numero de creditos REAL')
+    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Monto_Prom_Creditos')  # Creación Monto_Prom_Puntaje
+    DF_contactos = asignar_puntajes_por_cuartiles(DF_contactos, 'Num_Creditos')  # Creación Num_Creditos_Puntaje
 
-    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Días mora/atraso promedio', limites_atraso_promedio, puntajes_atraso_promedio)
-    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Días mora/atraso acumulados', limites_atraso_acumulado, puntajes_atraso_acumulado)
+    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Prom', limites_atraso_promedio, puntajes_atraso_promedio)  # Creación Dias_Atraso_Prom_Puntaje
+    DF_solicitud_credito = asignar_puntajes_personalizados(DF_solicitud_credito, 'Dias_Atraso_Acum', limites_atraso_acumulado, puntajes_atraso_acumulado)  # Creación Dias_Atraso_Acum_Puntaje
 
-    DF_solicitud_credito['Puntaje Final'] = (DF_solicitud_credito['Días mora/atraso promedio_puntaje'] + DF_solicitud_credito['Días mora/atraso acumulados_puntaje']) / 2
+    DF_solicitud_credito['Puntaje_Del_Credito'] = (DF_solicitud_credito['Dias_Atraso_Prom_puntaje'] + DF_solicitud_credito['Dias_Atraso_Acum_puntaje']) / 2
+
+    # Bonus Por Acuerdos cumplidos al 100%
+    DF_solicitud_credito = asignar_bonus_acuerdos(DF_solicitud_credito, bonus_value)
 
     # Agrupación y ponderación de puntajes por cliente
-    puntajes_por_cliente = DF_solicitud_credito.groupby('ID Cliente nocode')['Puntaje Final'].apply(list)
+    puntajes_por_cliente = DF_solicitud_credito.groupby('ID Cliente nocode')['Puntaje_Del_Credito'].apply(list)
     puntajes_ponderados = puntajes_por_cliente.apply(ponderar_puntajes)
 
     puntajes_ponderados_df = puntajes_ponderados.reset_index()
-    puntajes_ponderados_df.rename(columns={'Puntaje Final': 'Puntaje Ponderado Creditos', 'ID Cliente nocode': 'ID CLIENTE'}, inplace=True)
+    puntajes_ponderados_df.rename(columns={'Puntaje_Del_Credito': 'Puntaje_Ponderado_Creditos', 'ID Cliente nocode': 'ID CLIENTE'}, inplace=True)
 
-    return DF_contactos, puntajes_ponderados_df
-
-def unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_solicitud_credito):
-    """
-    Combine the DataFrames and calculate the final score for each contact.
-
-    :param DF_contactos: Contacts DataFrame.
-    :param puntajes_ponderados_df: DataFrame with weighted scores.
-    :param DF_solicitud_credito: DataFrame de solicitudes de crédito.
-    :return: Contacts DataFrame with the calculated score.
-    """
-
-    # Unir DF_contactos con los puntajes ponderados
+    # Unión de DF_contactos con los puntajes ponderados
     DF_contactos = DF_contactos.merge(puntajes_ponderados_df, on='ID CLIENTE', how='left')
 
-    # Crear columna 'Tiene Credito Perdido' en DF_solicitud_credito y luego unirla con DF_contactos
+    # Crear columna 'Tiene Credito Perdido' y luego unirla con DF_contactos
     DF_solicitud_credito['Tiene Credito Perdido'] = DF_solicitud_credito['Clasificación perdidos/no perdidos'].apply(lambda x: x == 'Perdido')
     clientes_con_credito_perdido = DF_solicitud_credito.groupby('ID Cliente nocode')['Tiene Credito Perdido'].any()
     clientes_con_credito_perdido = clientes_con_credito_perdido.reset_index().rename(columns={'ID Cliente nocode': 'ID CLIENTE'})
     DF_contactos = DF_contactos.merge(clientes_con_credito_perdido, on='ID CLIENTE', how='left')
 
-    DF_contactos['puntaje_inicial'] = 500
+    DF_contactos = score_inicial(DF_contactos)
 
-    # Calcular el score final
-    DF_contactos['score_calculado'] = DF_contactos.apply(aplicar_calculo, axis=1)
+    # Cálculo del score final
+    DF_contactos['Puntaje_Final'] = DF_contactos.apply(aplicar_calculo, axis=1)
 
+
+    DF_contactos = afectaciones_por_referidos(DF_contactos, DF_solicitud_credito, INCREMENTO_POR_REFERIDO, DECREMENTO_POR_REFERIDO, UMBRAL_BONUS, PARAM_POR_PERDIDO)
     return DF_contactos
+
 
 # Standard process
 
 def run(token):
-    DF_solicitud_credito, DF_contactos = obtener_datos(token)
-    DF_contactos, DF_solicitud_credito = transformar_datos(DF_contactos, DF_solicitud_credito)
-    DF_contactos, puntajes_ponderados_df = calcular_puntajes(DF_contactos, DF_solicitud_credito)
-    DF_contactos = unir_dataframes_y_calcular_score(DF_contactos, puntajes_ponderados_df, DF_solicitud_credito)
-    return DF_contactos
+    try:
+        DF_solicitud_credito, DF_contactos = obtener_datos(token)
+        DF_contactos, DF_solicitud_credito = transformar_datos(DF_contactos, DF_solicitud_credito)
+        DF_contactos = calcular_puntajes(DF_contactos, DF_solicitud_credito,limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value)
+    except:
+        logger.error("Error durante el procesamiento en run")
+    return DF_contactos, DF_solicitud_credito
 
+
+def upload_pandas_to_s3(s3_path: str, df: pd.DataFrame) -> None:
+    """
+    Upload a pandas dataframe to S3.
+
+    :param s3_path: The S3 path where the IO buffer will be uploaded, in the format 's3://bucket_name/key'.
+    :param df: Dataframe to be uploaded.
+    """
+    logger.info(f"Uploading scores on S3 {s3_path}")
+    with BytesIO() as csv_buffer:
+        df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+        upload_buffer_to_s3(s3_path, csv_buffer)
+
+
+def clean_before_export(df):
+    # Drop the specified columns
+    df = df.drop(columns=['¿Referido RODA?', "ID's Créditos"])
+    return df
 
 # Lambda handler
 
@@ -284,48 +374,63 @@ def handler(event, context):
     :param context: AWS Lambda context object (not used for now).
     :return: A response dictionary with status and result.
     """
-
-    print("inicio procesamiento handler")
+    logger.setLevel(logging.INFO)
+    logger.info("Starting execution...")
 
     try:
-        df_contactos_procesados = run(personal_access_token)
-        # Aquí puedes añadir código para manejar df_contactos_procesados, 
-        # como guardarlo en S3 o procesarlo de alguna manera.
+        df_contactos_procesados, df_creditos_procesados = run(personal_access_token)
 
-        # Por ahora, solo vamos a imprimir un mensaje.
-        print(f"Procesamiento completado con {len(df_contactos_procesados)} registros.")
+        # nombre_archivo = "contactos_procesados.xlsx"
+        # nombre_archivo_2 = "creditos_procesados.xlsx"
+        # Guarda el DataFrame en un archivo Excel en el directorio actual
+        # df_contactos_procesados.to_excel(nombre_archivo, index=False)
+        # df_creditos_procesados.to_excel(nombre_archivo_2, index=False)
+        logger.info(f"Scoring calculado completamente con {len(df_contactos_procesados)} clientes.")
+
+        # Obtiene la fecha de procesamiento desde el evento, si está disponible.
+        # processing_date = event.get("processing_date", "")
+
+        processing_date = yesterday()
+        print(processing_date)
+        output_path = os.path.join(RODAAPP_BUCKET_PREFIX, "daily_scoring", f"date_{format_dashed_date(processing_date)}_scores.csv")
+        df_contactos_procesados=clean_before_export(df_contactos_procesados)
+        upload_pandas_to_s3(output_path, df_contactos_procesados)
+
+        # return_column_airtable('Contactos', personal_access_token, base_key, 'Info_Referidos','Puntaje_Final_Ajustado', df_contactos_procesados)
+
+
 
         return {
             'statusCode': 200,
             'body': 'Procesamiento completado exitosamente.'
         }
     except Exception as e:
-        print(f"Error durante el procesamiento: {e}")
+        logger.error(f"Error durante el procesamiento: {e}")
         return {
-            'statusCode': 500,
+            'statusCode': 500,  
             'body': 'Error durante el procesamiento.'
         }
-    print("Procesamiento completado handler")
+    
 # Script principal
 
-if __name__ == '__main__':
-
-    """
-    Main entry point for local script execution.
-    
-    Executes the script directly and simulates an AWS Lambda event.
-    """
-    print("entró a main")
-
-    # Simular un evento Lambda. Puedes modificar esto según tus necesidades.
-    fake_lambda_event = {
-        # Agrega aquí los datos que normalmente recibirías en un evento de Lambda
-    }
-    fake_lambda_context = None  # Context no es necesario para la ejecución local
-
-    # Ejecutar el handler como si estuviera en Lambda
-    response = handler(fake_lambda_event, fake_lambda_context)
-    print(response)
+if __name__ == "__main__":
+    # Determina el entorno de ejecución
+    if 'AWS_LAMBDA_RUNTIME_API' in os.environ:
+        # Estamos ejecutando en el entorno de AWS Lambda
+        from awslambdaric import bootstrap
+        bootstrap.run(handler, '/var/runtime/bootstrap')
+    else:
+        # Estamos ejecutando localmente o en otro entorno fuera de AWS Lambda
+        parser = argparse.ArgumentParser(description="Scoring Model execution")
+        parser.add_argument("-e", "--environment", help="El entorno de ejecución (staging o production)", choices=['staging', 'production'], required=False, default="staging")
+        # parser.add_argument("-d", "--date", help="Date of the execution of this script in YYYY-MM-DD format", required=False, default=datetime.now().strftime("%Y-%m-%d"), type=lambda s: datetime.strptime(s, "%Y-%m-%d").strftime("%Y-%m-%d"))
+        
+        args = parser.parse_args()
+        setup_local_logger() # Configura un logger para ejecución local si es necesario
+        # Simula el evento y el contexto que AWS Lambda pasaría a tu función 'handler'
+        event = {"environment": args.environment}
+        context = "LocalExecution"  # Puedes proporcionar un objeto de contexto más detallado si es necesario
+        handler(event, context)
 
 
 

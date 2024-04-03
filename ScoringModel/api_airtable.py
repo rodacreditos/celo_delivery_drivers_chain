@@ -1,8 +1,10 @@
 from airtable import Airtable
 import pandas as pd
 import numpy as np
+from python_utilities.utils import logger
 
-def get_table_Airtable(table_name1, personal_access_token,base_key, view_name=None):
+
+def get_table_Airtable(table_name1, personal_access_token,base_key, fields=None, view_name=None):
 
     """
     Gets data from a specific Airtable table, optionally through a custom view.
@@ -19,15 +21,16 @@ def get_table_Airtable(table_name1, personal_access_token,base_key, view_name=No
 
     table_name = table_name1  # Nombre de tu tabla
     api_key = personal_access_token  # Tu Personal Access Token
-
     airtable = Airtable(base_key, table_name, api_key)
-
-    # Si se proporciona una vista, se obtienen los registros de esa vista; de lo contrario, de toda la tabla
+    # Determina los parámetros para obtener los registros
+    params = {}
+    if fields:
+        params['fields'] = fields
     if view_name:
-        records = airtable.get_all(view=view_name)
-    else:
-        records = airtable.get_all()
+        params['view'] = view_name
 
+    logger.info(f"Obteniendo registros de tabla {table_name}...")
+    records = airtable.get_all(**params)
     # Convierte los registros en una lista de diccionarios
     records_dict = [record['fields'] for record in records]
 
@@ -35,3 +38,66 @@ def get_table_Airtable(table_name1, personal_access_token,base_key, view_name=No
     df = pd.DataFrame(records_dict)
 
     return df
+
+
+def return_column_airtable(table_name, personal_access_token, base_key, name_column1, name_column2, name_column3, df_contacto):
+    """
+    Updates a specified column in an Airtable table for each record that matches 'ID CLIENTE' in the provided DataFrame.
+
+    Args:
+        table_name (str): Name of the table in Airtable to update.
+        personal_access_token (str): Personal access token for authenticating with the Airtable API.
+        base_key (str): The base key of the Airtable base containing the target table.
+        name_column (str): The name of the column in Airtable to be updated.
+        df_contacto (pd.DataFrame): DataFrame containing 'ID CLIENTE' and the values to update in the specified column.
+
+    Returns:
+        None: The function updates the records in Airtable and does not return a value.
+    """
+
+    try:
+        # Inicializar el cliente de Airtable
+        airtable = Airtable(base_key, table_name, api_key=personal_access_token)
+        
+        # Función para obtener todos los registros y crear un mapa de 'ID CLIENTE' a ID de Airtable
+        def fetch_all_records(airtable, field_name):
+            """Fetch all records from Airtable and return a map of field_name to record ID."""
+            records = airtable.get_all(fields=[field_name])
+            return {record['fields'].get(field_name): record['id'] for record in records if field_name in record['fields']}
+        
+        # Usar la función para crear un mapa de IDs
+        id_map = fetch_all_records(airtable, 'ID CLIENTE')
+    except Exception as e:
+        logger.error(f"Error initializing Airtable client or fetching records: {e}")
+        return
+
+    updated_count = 0
+    not_found_count = 0
+
+    for index, row in df_contacto.iterrows():
+        id_cliente = row['ID CLIENTE']
+        if id_cliente in id_map:
+            record_id = id_map[id_cliente]
+            update_data = {}
+            
+            # Evalúa name_column1 para actualizar solo si no es NaN ni vacío
+            if pd.notna(row[name_column1]) and row[name_column1] != '':
+                update_data[name_column1] = row[name_column1]
+                update_data[name_column3] = row[name_column3]
+            
+            # name_column2 se actualiza sin restricciones
+            update_data[name_column2] = row[name_column2]
+            
+            try:
+                # Solo realiza la actualización si hay algo que actualizar
+                if update_data:
+                    airtable.update(record_id, update_data)
+                    updated_count += 1
+                    logger.info(f"Updated record for ID CLIENTE {id_cliente} in Airtable.")
+            except Exception as e:
+                logger.error(f"Error updating record for ID CLIENTE {id_cliente} in Airtable: {e}")
+        else:
+            not_found_count += 1
+            logger.info(f"No matching record found for ID CLIENTE {id_cliente} in Airtable.")
+
+    logger.info(f"Update complete. {updated_count} records updated, {not_found_count} records not found.")

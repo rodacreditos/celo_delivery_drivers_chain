@@ -336,9 +336,12 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedi
 # Standard process
 
 def run(token):
-    DF_solicitud_credito, DF_contactos = obtener_datos(token)
-    DF_contactos, DF_solicitud_credito = transformar_datos(DF_contactos, DF_solicitud_credito)
-    DF_contactos = calcular_puntajes(DF_contactos, DF_solicitud_credito,limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value)
+    try:
+        DF_solicitud_credito, DF_contactos = obtener_datos(token)
+        DF_contactos, DF_solicitud_credito = transformar_datos(DF_contactos, DF_solicitud_credito)
+        DF_contactos = calcular_puntajes(DF_contactos, DF_solicitud_credito,limites_atraso_promedio, puntajes_atraso_promedio, limites_atraso_acumulado, puntajes_atraso_acumulado, bonus_value)
+    except:
+        logger.error("Error durante el procesamiento en run")
     return DF_contactos, DF_solicitud_credito
 
 

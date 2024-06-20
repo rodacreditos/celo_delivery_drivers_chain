@@ -61,6 +61,11 @@ import boto3
 import time
 from botocore.exceptions import ClientError
 
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+
 MAXIMUM_DISTANCE = 9000000 # Meters = 9000km
 MINIMUM_DISTANCE = 0
 MAXIMUM_DURATION = 90 # Minutes
@@ -609,6 +614,36 @@ def assign_guajira_protos_routes(df: pd.DataFrame, address: str) -> pd.DataFrame
 
     return df
 
+def send_email(subject: str, body: str, to_email: str, from_email: str, email_password: str) -> None:
+    """
+    Sends an email with the specified subject and body to the specified recipient.
+
+    Parameters:
+    - subject (str): The subject of the email.
+    - body (str): The body content of the email.
+    - to_email (str): The recipient's email address.
+    - from_email (str): The sender's email address.
+    - email_password (str): The password for the sender's email account.
+    """
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = to_email
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(from_email, email_password)
+        text = msg.as_string()
+        server.sendmail(from_email, to_email, text)
+        server.quit()
+        logger.info('Email sent successfully')
+    except Exception as e:
+        logger.error(f'Failed to send email: {e}')
+
+
 def handler(event: Dict[str, Any], context: Any) -> None:
     """
     Handler function for processing Tribu data.
@@ -684,12 +719,13 @@ def handler(event: Dict[str, Any], context: Any) -> None:
 
     # Check if there are any remaining GPS devices without an associated client in Airtable
     if not routes_missing_celo.empty:
-        # Extract the list of devices still missing a Celo address
         devices_missing_celo = routes_missing_celo['k_dispositivo'].unique().tolist()
+        subject = "GPS Devices Not Associated to a Client"
+        body = ("There are GPS devices not associated to a client in Airtable.\n"
+                f"Please fix and retry following list of devices: {', '.join(devices_missing_celo)}")
         
-        # Raise an exception with a message listing these devices, prompting for a fix
-        raise Exception("There are GPS devices not associated to a client in Airtable.\n    "
-                        f"* Please fix and retry following list of devices: {', '.join(devices_missing_celo)}")
+        send_email(subject, body, "santiago@roda.xyz", "gptdelpueblo@gmail.com", "tyqr isou bnul laed")
+        logger.warning("GPS devices not associated to a client. Proceeding with remaining devices.")
 
     # Final filter to remove routes associated with devices that are known to be unassigned and lack a Celo address
     # This step ensures that the final dataset does not include routes without a valid Celo address

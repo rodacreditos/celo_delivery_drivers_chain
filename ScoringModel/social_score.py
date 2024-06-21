@@ -23,14 +23,14 @@ def validacion_creditos_en_proceso(df_contacto, df_credito):
     """
 
     df_credito_en_proceso = df_credito[df_credito['ESTADO'] == 'EN PROCESO']
-    ultimo_credito_por_cliente = df_credito_en_proceso.sort_values(by='Fecha desembolso', ascending=False).drop_duplicates('ID Cliente nocode')
+    ultimo_credito_por_cliente = df_credito_en_proceso.sort_values(by='Fecha desembolso', ascending=False).drop_duplicates('ID_cliente_nocode')
 
-    tiene_credito_en_proceso = df_credito_en_proceso['ID Cliente nocode'].unique()
+    tiene_credito_en_proceso = df_credito_en_proceso['ID_cliente_nocode'].unique()
     df_contacto['Créditos en Proceso'] = df_contacto['ID CLIENTE'].apply(lambda x: 'VERDADERO' if x in tiene_credito_en_proceso else 'FALSO')
 
-    dias_atraso_dict = ultimo_credito_por_cliente.set_index('ID Cliente nocode')['Días de atraso'].to_dict()
-    id_credito_dict = ultimo_credito_por_cliente.set_index('ID Cliente nocode')['ID CRÉDITO'].to_dict()
-    monto_credito = ultimo_credito_por_cliente.set_index('ID Cliente nocode')['Deuda actual 2.0'].to_dict()
+    dias_atraso_dict = ultimo_credito_por_cliente.set_index('ID_cliente_nocode')['Días de atraso'].to_dict()
+    id_credito_dict = ultimo_credito_por_cliente.set_index('ID_cliente_nocode')['ID CRÉDITO'].to_dict()
+    monto_credito = ultimo_credito_por_cliente.set_index('ID_cliente_nocode')['Deuda actual 2.0'].to_dict()
     # Asigna directamente np.nan en lugar de 'N/A' antes de la conversión a numérico
     df_contacto['Último Días de Atraso'] = df_contacto['ID CLIENTE'].map(dias_atraso_dict)
     df_contacto['Último ID CRÉDITO'] = df_contacto['ID CLIENTE'].map(id_credito_dict)
@@ -179,10 +179,10 @@ def cleaning_social_variables(df_contacto, df_credito):
 
         # Asegura que los IDs se manejen correctamente y limpia valores NaN
         df_contacto['ID CLIENTE'] = pd.to_numeric(df_contacto['ID CLIENTE'], errors='coerce').astype('float64')
-        df_credito['ID Cliente nocode'] = pd.to_numeric(df_credito['ID Cliente nocode'], errors='coerce').astype('float64')
+        df_credito['ID_cliente_nocode'] = pd.to_numeric(df_credito['ID_cliente_nocode'], errors='coerce').astype('float64')
         df_contacto['ID Referidor Nocode'] = pd.to_numeric(df_contacto['ID Referidor Nocode'], errors='coerce')
         df_contacto.dropna(subset=['ID CLIENTE'], inplace=True)
-        df_credito.dropna(subset=['ID Cliente nocode'], inplace=True)
+        df_credito.dropna(subset=['ID_cliente_nocode'], inplace=True)
 
     except KeyError as e:
         logger.error(f"Columna faltante en DataFrame: {e}")

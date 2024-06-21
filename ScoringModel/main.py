@@ -22,9 +22,8 @@ airtable_credentials = read_yaml_from_s3(airtable_credentials_path)
 base_key = airtable_credentials['BASE_ID']
 personal_access_token = airtable_credentials['PERSONAL_ACCESS_TOKEN']
 
-fields_credito = ["ID CRÉDITO", "ESTADO", "ID Cliente nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados", "# Acuerdos FECHA cumplido copy", "Cantidad acuerdos", "Días de atraso", "Fecha desembolso", "Deuda actual 2.0"]
-fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "Promedio monto créditos", "Numero de creditos REAL", "¿Referido RODA?", "ID Referidor Nocode", "Nombre completo"]
-
+fields_credito = ["ID CRÉDITO", "ESTADO", "ID_cliente_nocode", "Clasificación perdidos/no perdidos", "Días mora/atraso promedio", "Días mora/atraso acumulados", "# Acuerdos FECHA cumplido copy", "Cantidad acuerdos", "Días de atraso", "Fecha desembolso", "Deuda actual 2.0"]
+fields_contactos = ["ID CLIENTE", "Status", "ID's Créditos", "promedio_deuda_creditos", "numero_de_creditos", "¿Referido RODA?", "ID Referidor Nocode", "Nombre completo"]
 
 estados_deseados = ["POR INICIAR", "RECHAZADO", "INACTIVO"]
 estados_deseados_credito = ["PAGADO", "EN PROCESO"]
@@ -233,14 +232,14 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
     logger.info("Cleaning data...")
 
     # Conversión de tipos de datos y limpieza
-    DF_contactos['Numero de creditos REAL'] = pd.to_numeric(DF_contactos['Numero de creditos REAL'])
-    DF_contactos['Promedio monto créditos'] = DF_contactos['Promedio monto créditos'].apply(replace_dict_with_empty)
-    DF_contactos['Promedio monto créditos'] = pd.to_numeric(DF_contactos['Promedio monto créditos'])
+    DF_contactos['numero_de_creditos'] = pd.to_numeric(DF_contactos['numero_de_creditos'])
+    DF_contactos['promedio_deuda_creditos'] = DF_contactos['promedio_deuda_creditos'].apply(replace_dict_with_empty)
+    DF_contactos['promedio_deuda_creditos'] = pd.to_numeric(DF_contactos['promedio_deuda_creditos'])
     DF_contactos['ID Referidor Nocode'] = pd.to_numeric(DF_contactos['ID Referidor Nocode'], errors='coerce')
 
     DF_solicitud_credito['Días mora/atraso promedio'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso promedio'], errors='coerce')
     DF_solicitud_credito['Días mora/atraso acumulados'] = pd.to_numeric(DF_solicitud_credito['Días mora/atraso acumulados'], errors='coerce')
-    DF_solicitud_credito['ID Cliente nocode'] = pd.to_numeric(DF_solicitud_credito['ID Cliente nocode'])
+    DF_solicitud_credito['ID_cliente_nocode'] = pd.to_numeric(DF_solicitud_credito['ID_cliente_nocode'])
     DF_solicitud_credito['# Acuerdos FECHA cumplido copy'] = pd.to_numeric(DF_solicitud_credito['# Acuerdos FECHA cumplido copy'])
     DF_solicitud_credito['Cantidad acuerdos'] = pd.to_numeric(DF_solicitud_credito['Cantidad acuerdos'])
     
@@ -256,7 +255,7 @@ def transformar_datos(DF_contactos, DF_solicitud_credito):
 
     # Cambiar el nombre de las columnas
     DF_solicitud_credito = DF_solicitud_credito.rename(columns={'Días mora/atraso promedio': 'Dias_Atraso_Prom', 'Días mora/atraso acumulados': 'Dias_Atraso_Acum', '# Acuerdos FECHA cumplido copy':'Num_Acuerdos_Cumplidos'})
-    DF_contactos = DF_contactos.rename(columns={'Promedio monto créditos': 'Monto_Prom_Creditos', 'Numero de creditos REAL': 'Num_Creditos'})
+    DF_contactos = DF_contactos.rename(columns={'promedio_deuda_creditos': 'Monto_Prom_Creditos', 'numero_de_creditos': 'Num_Creditos'})
 
     # Ahora las columnas tienen nuevos nombres en el DataFrame
 
@@ -308,19 +307,19 @@ def calcular_puntajes(DF_contactos, DF_solicitud_credito, limites_atraso_promedi
     DF_solicitud_credito = asignar_bonus_acuerdos(DF_solicitud_credito, bonus_value)
 
     # Agrupación y ponderación de puntajes por cliente
-    puntajes_por_cliente = DF_solicitud_credito.groupby('ID Cliente nocode')['Puntaje_Del_Credito'].apply(list)
+    puntajes_por_cliente = DF_solicitud_credito.groupby('ID_cliente_nocode')['Puntaje_Del_Credito'].apply(list)
     puntajes_ponderados = puntajes_por_cliente.apply(ponderar_puntajes)
 
     puntajes_ponderados_df = puntajes_ponderados.reset_index()
-    puntajes_ponderados_df.rename(columns={'Puntaje_Del_Credito': 'Puntaje_Ponderado_Creditos', 'ID Cliente nocode': 'ID CLIENTE'}, inplace=True)
+    puntajes_ponderados_df.rename(columns={'Puntaje_Del_Credito': 'Puntaje_Ponderado_Creditos', 'ID_cliente_nocode': 'ID CLIENTE'}, inplace=True)
 
     # Unión de DF_contactos con los puntajes ponderados
     DF_contactos = DF_contactos.merge(puntajes_ponderados_df, on='ID CLIENTE', how='left')
 
     # Crear columna 'Tiene Credito Perdido' y luego unirla con DF_contactos
     DF_solicitud_credito['Tiene Credito Perdido'] = DF_solicitud_credito['Clasificación perdidos/no perdidos'].apply(lambda x: x == 'Perdido')
-    clientes_con_credito_perdido = DF_solicitud_credito.groupby('ID Cliente nocode')['Tiene Credito Perdido'].any()
-    clientes_con_credito_perdido = clientes_con_credito_perdido.reset_index().rename(columns={'ID Cliente nocode': 'ID CLIENTE'})
+    clientes_con_credito_perdido = DF_solicitud_credito.groupby('ID_cliente_nocode')['Tiene Credito Perdido'].any()
+    clientes_con_credito_perdido = clientes_con_credito_perdido.reset_index().rename(columns={'ID_cliente_nocode': 'ID CLIENTE'})
     DF_contactos = DF_contactos.merge(clientes_con_credito_perdido, on='ID CLIENTE', how='left')
 
     DF_contactos = score_inicial(DF_contactos)

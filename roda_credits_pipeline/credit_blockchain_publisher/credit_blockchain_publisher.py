@@ -179,8 +179,9 @@ def parse_days_from_credit_repayment(days_from_credit_repayment: str) -> int:
     # Use regular expression to find the first sequence of digits in the string
     match = re.search(r'\d+', days_from_credit_repayment)
     if match:
+        days_parsed = int(match.group(0))*7
         # Convert the matched string to an integer and return it
-        return int(match.group(0))
+        return days_parsed
     else:
         # If no digits were found, you might want to handle this case, e.g., raise an error
         raise ValueError("No digits found in input string.")

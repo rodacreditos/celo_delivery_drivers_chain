@@ -216,7 +216,7 @@ def publish_to_celo(
         payment_record_id = payment['id']
         payment_fields = payment['fields']
         id_payment = int(payment_fields['ID Pagos'])
-        id_credit = int(payment_fields['ID Credito Nocode'])
+        id_credit = int(payment_fields['ID_credito_nocode'])
         payment_date = to_unix_timestamp(payment_fields['Fecha de pago'], '%Y-%m-%d')
         amount = int(payment_fields['MONTO'])
         is_published_to_celo = payment_fields.get(f'PublishedToCelo{env.capitalize()}', False)
@@ -295,7 +295,7 @@ def fetch_non_published_payments_from_airtable(payments_table: Airtable, env: st
 
     payment_records = payments_table.get_all(
         view='PAYMENT_TO_CELO_PIPELINE_VIEW', 
-        fields=['ID Pagos', 'Fecha de pago', 'MONTO', 'ID Credito Nocode',
+        fields=['ID Pagos', 'Fecha de pago', 'MONTO', 'ID_credito_nocode',
                 payment_published_to_celo_field_name, credit_published_to_celo_field_name],
         formula=f'AND(NOT({{{payment_published_to_celo_field_name}}}), {{{credit_published_to_celo_field_name}}})'
         )
